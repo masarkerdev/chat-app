@@ -55,3 +55,10 @@ export function isEmojiOnly(text: string) {
   if (!t || t.length > 16) return false;
   return /^(\p{Extended_Pictographic}|\p{Emoji_Component}|‍|️|\s)+$/u.test(t) && !/\d/.test(t);
 }
+
+/** রিপ্লাইয়ের উদ্ধৃতিতে মূল মেসেজের ছোট অংশ */
+export function snippet(m: { content: string | null; image_path: string | null }, max = 90) {
+  const t = m.content?.replace(/\s+/g, ' ').trim();
+  if (t) return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+  return m.image_path ? '📷 ছবি' : '';
+}

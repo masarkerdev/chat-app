@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback, useState } from 'react';
 import { useChat } from '@/hooks/useChat';
 import { usePush } from '@/hooks/usePush';
 import { PushBanner } from '@/components/PushBanner';
@@ -7,10 +8,14 @@ import { ChatHeader } from '@/components/ChatHeader';
 import { MessageList } from '@/components/MessageList';
 import { Composer } from '@/components/Composer';
 import { getSupabase } from '@/lib/supabase';
+import { snippet } from '@/lib/format';
+import type { Message } from '@/lib/types';
 
 export default function ChatPage() {
   const chat = useChat();
   const push = usePush();
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const cancelReply = useCallback(() => setReplyTo(null), []);
 
   if (chat.status === 'loading') {
     return (
@@ -45,6 +50,17 @@ export default function ChatPage() {
   }
 
   const me = chat.me!;
+  const partnerName = chat.partner?.display_name ?? 'অপর জন';
+
+  const send = (text: string) => {
+    chat.sendText(text, replyTo?.id);
+    setReplyTo(null);
+  };
+  const sendImage = async (file: File) => {
+    const err = await chat.sendImage(file, replyTo?.id);
+    if (!err) setReplyTo(null);
+    return err;
+  };
 
   return (
     <main className="chat">
@@ -61,7 +77,7 @@ export default function ChatPage() {
 
       <PushBanner push={push} />
 
-      {!chat.connected && <div className="conn-banner">সংযোগ বিচ্ছিন্ন — আবার যুক্ত হওয়ার চেষ্টা চলছে…</div>}
+      {!chat.connected && <div className="conn-banner">সংযোগ বিচ্ছিন্ন। আবার যুক্ত হওয়ার চেষ্টা চলছে…</div>}
 
       <MessageList
         messages={chat.messages}
@@ -69,12 +85,26 @@ export default function ChatPage() {
         hasMore={chat.hasMore}
         loadingOlder={chat.loadingOlder}
         typing={chat.partnerTyping}
+        partnerName={partnerName}
+        quotes={chat.quotes}
         onLoadOlder={chat.loadOlder}
         onDelete={chat.deleteMessage}
         onRetry={chat.retry}
+        onReply={setReplyTo}
+        onReact={chat.react}
       />
 
-      <Composer onSend={chat.sendText} onImage={chat.sendImage} onTyping={chat.sendTyping} />
+      <Composer
+        reply={
+          replyTo
+            ? { name: partnerName, text: snippet(replyTo, 120), byMe: replyTo.sender_id === me.id }
+            : null
+        }
+        onCancelReply={cancelReply}
+        onSend={send}
+        onImage={sendImage}
+        onTyping={chat.sendTyping}
+      />
     </main>
   );
 }

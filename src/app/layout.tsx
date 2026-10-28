@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { PwaRegister } from '@/components/PwaRegister';
+import { ThemeSync } from '@/components/ThemeSync';
+import { THEME_BOOT_SCRIPT } from '@/lib/theme';
 // ফন্ট অ্যাপের সাথেই থাকে — Google Fonts লাগে না, অফলাইনেও কাজ করে
 import '@fontsource-variable/anek-bangla/wdth.css';
 import '@fontsource/galada/bengali-400.css';
@@ -35,10 +37,15 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="bn">
+    <html lang="bn" suppressHydrationWarning>
+      <head>
+        {/* থিম আগেই বসায়, যাতে খোলার সময় ভুল রঙের ঝলক না দেখায় */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body>
         {children}
         <PwaRegister />
+        <ThemeSync />
       </body>
     </html>
   );

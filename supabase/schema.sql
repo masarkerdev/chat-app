@@ -322,3 +322,55 @@ grant  execute on function public.claim_push(uuid)                             t
 grant  execute on function public.remove_push_subscriptions(text[])            to authenticated;
 
 -- পুরোনো push_log পরিষ্কার রাখতে (ঐচ্ছিক): মেসেজ মুছলে এটি নিজেই মুছে যায়
+
+-- =====================================================================
+-- ৯. রিপ্লাই ও ইমোজি রিঅ্যাকশন
+-- =====================================================================
+
+-- কোন মেসেজের উত্তরে লেখা (মূল মেসেজ মুছে গেলে লিংকটা খালি হয়ে যায়)
+alter table public.messages
+  add column if not exists reply_to uuid references public.messages(id) on delete set null;
+create index if not exists messages_reply_to_idx on public.messages (reply_to);
+
+-- প্রতিটি মেসেজে প্রত্যেকে একটি করে রিঅ্যাকশন দিতে পারে (বদলালে আগেরটা সরে যায়)
+create table if not exists public.message_reactions (
+  message_id uuid not null references public.messages(id) on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  emoji      text not null check (char_length(emoji) between 1 and 16),
+  created_at timestamptz not null default now(),
+  primary key (message_id, user_id)
+);
+alter table public.message_reactions replica identity full;
+alter table public.message_reactions enable row level security;
+
+drop policy if exists "members read reactions"  on public.message_reactions;
+drop policy if exists "add own reaction"        on public.message_reactions;
+drop policy if exists "change own reaction"     on public.message_reactions;
+drop policy if exists "remove own reaction"     on public.message_reactions;
+
+create policy "members read reactions" on public.message_reactions
+  for select to authenticated
+  using (public.is_member());
+
+create policy "add own reaction" on public.message_reactions
+  for insert to authenticated
+  with check (public.is_member() and user_id = auth.uid());
+
+create policy "change own reaction" on public.message_reactions
+  for update to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+create policy "remove own reaction" on public.message_reactions
+  for delete to authenticated
+  using (user_id = auth.uid());
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'message_reactions'
+  ) then
+    alter publication supabase_realtime add table public.message_reactions;
+  end if;
+end $$;

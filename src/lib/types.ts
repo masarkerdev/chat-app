@@ -5,6 +5,11 @@ export type Profile = {
   last_seen: string | null;
 };
 
+export type Reaction = {
+  user_id: string;
+  emoji: string;
+};
+
 export type Message = {
   id: string;
   sender_id: string;
@@ -12,6 +17,10 @@ export type Message = {
   image_path: string | null;
   created_at: string;
   seen_at: string | null;
+  /** কোন মেসেজের উত্তরে লেখা */
+  reply_to?: string | null;
+  /** প্রত্যেকের একটি করে রিঅ্যাকশন */
+  reactions?: Reaction[];
   /** শুধু ক্লায়েন্টে: সার্ভারে পৌঁছানোর আগের অবস্থা */
   pending?: boolean;
   failed?: boolean;
@@ -20,3 +29,6 @@ export type Message = {
   /** শুধু ক্লায়েন্টে: ব্যর্থ হলে আবার পাঠানোর জন্য মূল ফাইল */
   localFile?: Blob;
 };
+
+/** রিঅ্যাকশনের দ্রুত তালিকা */
+export const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '🙏', '👍'];

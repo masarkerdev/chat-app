@@ -6,11 +6,13 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabase, IMAGE_BUCKET, PAGE_SIZE } from '@/lib/supabase';
 import { compressImage, extFor } from '@/lib/image';
 import { clearNotifications, disablePush, isPushActive, notifyPartner, syncPush } from '@/lib/push';
-import type { Message, Profile } from '@/lib/types';
+import type { Message, Profile, Reaction } from '@/lib/types';
 
 const ROOM = 'room:dujone';
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const BASE_TITLE = 'দুজনে';
+/** মেসেজের সাথে রিঅ্যাকশনও একসাথে আনে */
+const MSG_COLS = 'id, sender_id, content, image_path, created_at, seen_at, reply_to, reactions:message_reactions(user_id, emoji)';
 
 type Status = 'loading' | 'ready' | 'not-member' | 'error';
 
@@ -35,10 +37,19 @@ function merge(list: Message[], incoming: Message[]) {
       m.id,
       prev
         ? { ...prev, ...m, pending: false, failed: false, localFile: undefined }
-        : m
+        : { ...m, reactions: m.reactions ?? [] }
     );
   }
   return [...map.values()].sort(byTime);
+}
+
+/** একটি মেসেজের রিঅ্যাকশন তালিকায় একজনের রিঅ্যাকশন বসায় / সরায় */
+function withReaction(list: Message[], messageId: string, userId: string, emoji: string | null) {
+  return list.map((m) => {
+    if (m.id !== messageId) return m;
+    const others = (m.reactions ?? []).filter((r) => r.user_id !== userId);
+    return { ...m, reactions: emoji ? [...others, { user_id: userId, emoji }] : others };
+  });
 }
 
 export function useChat() {
@@ -54,6 +65,8 @@ export function useChat() {
   const [partnerOnline, setPartnerOnline] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [connected, setConnected] = useState(true);
+  /** তালিকায় নেই এমন পুরোনো মেসেজ, যার রিপ্লাই দেখানো হচ্ছে */
+  const [quotes, setQuotes] = useState<Record<string, Message | null>>({});
 
   const meRef = useRef<Profile | null>(null);
   const partnerRef = useRef<Profile | null>(null);
@@ -118,7 +131,7 @@ export function useChat() {
   const loadLatest = useCallback(async (initial = false) => {
     const { data, error } = await getSupabase()
       .from('messages')
-      .select('id, sender_id, content, image_path, created_at, seen_at')
+      .select(MSG_COLS)
       .order('created_at', { ascending: false })
       .limit(PAGE_SIZE);
     if (error || !data) return;
@@ -209,6 +222,15 @@ export function useChat() {
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (p) => {
           const id = (p.old as { id?: string }).id;
           if (id) setMessages((l) => l.filter((m) => m.id !== id));
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, (p) => {
+          if (p.eventType === 'DELETE') {
+            const o = p.old as Partial<Reaction & { message_id: string }>;
+            if (o.message_id && o.user_id) setMessages((l) => withReaction(l, o.message_id!, o.user_id!, null));
+          } else {
+            const n = p.new as Reaction & { message_id: string };
+            setMessages((l) => withReaction(l, n.message_id, n.user_id, n.emoji));
+          }
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (p) => {
           const pr = p.new as Profile;
@@ -310,6 +332,7 @@ export function useChat() {
       sender_id: msg.sender_id,
       content: msg.content,
       image_path: msg.image_path,
+      reply_to: msg.reply_to ?? null,
     });
     // ২৩৫০৫ = আগেই পৌঁছে গেছে (আবার পাঠানোর সময়), সেটা সফল ধরি
     if (error && error.code !== '23505') {
@@ -322,7 +345,7 @@ export function useChat() {
   }, []);
 
   const sendText = useCallback(
-    (text: string) => {
+    (text: string, replyTo?: string | null) => {
       const uid = meRef.current?.id;
       const content = text.trim();
       if (!uid || !content) return;
@@ -333,6 +356,8 @@ export function useChat() {
         image_path: null,
         created_at: new Date().toISOString(),
         seen_at: null,
+        reply_to: replyTo ?? null,
+        reactions: [],
         pending: true,
       };
       setMessages((l) => [...l, msg]);
@@ -342,7 +367,7 @@ export function useChat() {
   );
 
   const sendImage = useCallback(
-    async (file: File): Promise<string | null> => {
+    async (file: File, replyTo?: string | null): Promise<string | null> => {
       const uid = meRef.current?.id;
       if (!uid) return null;
       if (!file.type.startsWith('image/')) return 'শুধু ছবি পাঠানো যাবে।';
@@ -363,6 +388,8 @@ export function useChat() {
         image_path: `${uid}/${id}.${extFor(blob)}`,
         created_at: new Date().toISOString(),
         seen_at: null,
+        reply_to: replyTo ?? null,
+        reactions: [],
         pending: true,
         localUrl: URL.createObjectURL(blob),
         localFile: blob,
@@ -398,6 +425,42 @@ export function useChat() {
     if (msg.image_path) await sb.storage.from(IMAGE_BUCKET).remove([msg.image_path]);
   }, []);
 
+  /** রিঅ্যাকশন দেওয়া / বদলানো; একই ইমোজি আবার দিলে সরে যায় */
+  const react = useCallback(async (messageId: string, emoji: string) => {
+    const uid = meRef.current?.id;
+    const msg = messagesRef.current.find((m) => m.id === messageId);
+    if (!uid || !msg || msg.pending || msg.failed) return;
+    const current = msg.reactions?.find((r) => r.user_id === uid)?.emoji ?? null;
+    const next = current === emoji ? null : emoji;
+
+    setMessages((l) => withReaction(l, messageId, uid, next));
+    const sb = getSupabase();
+    const { error } = next
+      ? await sb
+          .from('message_reactions')
+          .upsert({ message_id: messageId, user_id: uid, emoji: next }, { onConflict: 'message_id,user_id' })
+      : await sb.from('message_reactions').delete().eq('message_id', messageId).eq('user_id', uid);
+    if (error) setMessages((l) => withReaction(l, messageId, uid, current));
+  }, []);
+
+  // রিপ্লাই করা মূল মেসেজ তালিকায় না থাকলে (অনেক পুরোনো) আলাদা করে আনি
+  useEffect(() => {
+    if (status !== 'ready') return;
+    const have = new Set(messages.map((m) => m.id));
+    const missing = [
+      ...new Set(messages.map((m) => m.reply_to).filter((id): id is string => !!id && !have.has(id) && !(id in quotes))),
+    ];
+    if (!missing.length) return;
+    setQuotes((q) => ({ ...q, ...Object.fromEntries(missing.map((id) => [id, null])) }));
+    getSupabase()
+      .from('messages')
+      .select('id, sender_id, content, image_path, created_at, seen_at')
+      .in('id', missing)
+      .then(({ data }) => {
+        if (data?.length) setQuotes((q) => ({ ...q, ...Object.fromEntries((data as Message[]).map((m) => [m.id, m])) }));
+      });
+  }, [messages, quotes, status]);
+
   const loadOlder = useCallback(async () => {
     if (loadingOlderRef.current || !hasMore) return;
     const oldest = messagesRef.current.find((m) => !m.pending && !m.failed);
@@ -406,7 +469,7 @@ export function useChat() {
     setLoadingOlder(true);
     const { data } = await getSupabase()
       .from('messages')
-      .select('id, sender_id, content, image_path, created_at, seen_at')
+      .select(MSG_COLS)
       .lt('created_at', oldest.created_at)
       .order('created_at', { ascending: false })
       .limit(PAGE_SIZE);
@@ -469,6 +532,8 @@ export function useChat() {
     sendImage,
     retry,
     deleteMessage,
+    react,
+    quotes,
     loadOlder,
     sendTyping,
     updateName,

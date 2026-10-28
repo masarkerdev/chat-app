@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Avatar } from './Avatar';
-import { BellIcon, BellOffIcon, KeyIcon, LogoutIcon, MoreIcon, PenIcon } from './Icons';
+import { BellIcon, BellOffIcon, KeyIcon, LogoutIcon, MoreIcon, PaletteIcon, PenIcon } from './Icons';
+import { ThemeDialog } from './ThemeDialog';
 import { PasswordDialog } from './PasswordDialog';
 import { formatLastSeen } from '@/lib/format';
 import type { Profile } from '@/lib/types';
@@ -22,6 +23,7 @@ type Props = {
 export function ChatHeader({ me, partner, online, typing, connected, push, onRename, onLogout }: Props) {
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
   const [, forceTick] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -112,6 +114,15 @@ export function ChatHeader({ me, partner, online, typing, connected, push, onRen
               role="menuitem"
               onClick={() => {
                 setOpen(false);
+                setThemeOpen(true);
+              }}
+            >
+              <PaletteIcon /> থিম ও রঙ
+            </button>
+            <button
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
                 setPwOpen(true);
               }}
             >
@@ -138,6 +149,9 @@ export function ChatHeader({ me, partner, online, typing, connected, push, onRen
       </div>
 
       {pwOpen && <PasswordDialog onClose={() => setPwOpen(false)} />}
+      {themeOpen && (
+        <ThemeDialog partnerName={partner?.display_name ?? 'অপর জন'} onClose={() => setThemeOpen(false)} />
+      )}
     </header>
   );
 }

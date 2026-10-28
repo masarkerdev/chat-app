@@ -1,7 +1,7 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { MessageBubble } from './MessageBubble';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { MessageBubble, type Quote } from './MessageBubble';
 import { ImageViewer } from './ImageViewer';
 import { ArrowDownIcon } from './Icons';
 import { dayKey, formatDayLabel } from '@/lib/format';
@@ -14,13 +14,30 @@ type Props = {
   loadingOlder: boolean;
   typing: boolean;
   onLoadOlder: () => void;
+  partnerName: string;
+  quotes: Record<string, Message | null>;
   onDelete: (id: string) => void;
   onRetry: (id: string) => void;
+  onReply: (msg: Message) => void;
+  onReact: (id: string, emoji: string) => void;
 };
 
 const GROUP_GAP_MS = 5 * 60 * 1000;
 
-export function MessageList({ messages, meId, hasMore, loadingOlder, typing, onLoadOlder, onDelete, onRetry }: Props) {
+export function MessageList({
+  messages,
+  meId,
+  hasMore,
+  loadingOlder,
+  typing,
+  partnerName,
+  quotes,
+  onLoadOlder,
+  onDelete,
+  onRetry,
+  onReply,
+  onReact,
+}: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
@@ -29,6 +46,28 @@ export function MessageList({ messages, meId, hasMore, loadingOlder, typing, onL
   const [viewer, setViewer] = useState<string | null>(null);
   const [newCount, setNewCount] = useState(0);
   const [showJump, setShowJump] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
+
+  const quoteFor = useCallback(
+    (m: Message): Quote | null => {
+      if (!m.reply_to) return null;
+      const q = byId.get(m.reply_to) ?? quotes[m.reply_to] ?? null;
+      const byMe = q ? q.sender_id === meId : false;
+      return { msg: q, name: partnerName, byMe };
+    },
+    [byId, quotes, meId, partnerName]
+  );
+
+  // রিপ্লাইয়ের উদ্ধৃতিতে চাপলে মূল মেসেজে গিয়ে একটু ঝলক দেয়
+  const jumpTo = useCallback((id: string) => {
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-mid="${id}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setHighlightId(id);
+    setTimeout(() => setHighlightId((h) => (h === id ? null : h)), 1600);
+  }, []);
 
   const atBottom = useRef(true);
   const prev = useRef({ first: '', last: '', height: 0, initialized: false });
@@ -166,12 +205,18 @@ export function MessageList({ messages, meId, hasMore, loadingOlder, typing, onL
               <MessageBubble
                 msg={m}
                 mine={m.sender_id === meId}
+                meId={meId}
                 firstInGroup={firstInGroup}
                 active={activeId === m.id}
+                highlighted={highlightId === m.id}
+                quote={quoteFor(m)}
                 onActivate={setActiveId}
                 onOpenImage={setViewer}
                 onDelete={onDelete}
                 onRetry={onRetry}
+                onReply={onReply}
+                onReact={onReact}
+                onJumpTo={jumpTo}
               />
             </Fragment>
           );

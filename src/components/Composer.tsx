@@ -1,10 +1,19 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ImageIcon, SendIcon } from './Icons';
+import { CloseIcon, ImageIcon, ReplyIcon, SendIcon } from './Icons';
+
+export type ReplyDraft = {
+  /** যার মেসেজের উত্তর দেওয়া হচ্ছে */
+  name: string;
+  text: string;
+  byMe: boolean;
+};
 
 type Props = {
   disabled?: boolean;
+  reply?: ReplyDraft | null;
+  onCancelReply?: () => void;
   onSend: (text: string) => void;
   onImage: (file: File) => Promise<string | null>;
   onTyping: (typing: boolean) => void;
@@ -12,7 +21,7 @@ type Props = {
 
 const MAX_LEN = 4000;
 
-export function Composer({ disabled, onSend, onImage, onTyping }: Props) {
+export function Composer({ disabled, reply, onCancelReply, onSend, onImage, onTyping }: Props) {
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -24,6 +33,11 @@ export function Composer({ disabled, onSend, onImage, onTyping }: Props) {
     isTouch.current = window.matchMedia('(pointer: coarse)').matches;
     if (!isTouch.current) taRef.current?.focus();
   }, []);
+
+  // রিপ্লাই বাছলে সাথে সাথে লেখার জায়গায় কার্সর
+  useEffect(() => {
+    if (reply) taRef.current?.focus();
+  }, [reply]);
 
   // টেক্সট অনুযায়ী উচ্চতা বাড়ে (সর্বোচ্চ ~৬ লাইন)
   useEffect(() => {
@@ -88,6 +102,19 @@ export function Composer({ disabled, onSend, onImage, onTyping }: Props) {
     >
       {error && <div className="composer-error" role="alert">{error}</div>}
 
+      {reply && (
+        <div className={`reply-bar ${reply.byMe ? 'quote-me' : 'quote-them'}`}>
+          <ReplyIcon size={18} className="reply-bar-icon" />
+          <div className="reply-bar-body">
+            <span className="quote-name">{reply.byMe ? 'নিজের মেসেজের' : `${reply.name}-এর মেসেজের`} উত্তর</span>
+            <span className="quote-text">{reply.text}</span>
+          </div>
+          <button type="button" className="icon-btn" aria-label="রিপ্লাই বাতিল" onClick={onCancelReply}>
+            <CloseIcon size={18} />
+          </button>
+        </div>
+      )}
+
       <button
         type="button"
         className="icon-btn composer-attach"
@@ -118,6 +145,10 @@ export function Composer({ disabled, onSend, onImage, onTyping }: Props) {
           onChange={(e) => onChange(e.target.value)}
           onBlur={stopTyping}
           onKeyDown={(e) => {
+            if (e.key === 'Escape' && reply) {
+              onCancelReply?.();
+              return;
+            }
             // ডেস্কটপে Enter = পাঠান, Shift+Enter = নতুন লাইন; মোবাইলে Enter = নতুন লাইন
             if (e.key === 'Enter' && !e.shiftKey && !isTouch.current && !e.nativeEvent.isComposing) {
               e.preventDefault();
