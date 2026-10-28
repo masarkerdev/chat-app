@@ -1,0 +1,1168 @@
+/* =========================================================
+   দুজনে — থিম টোকেন
+   ========================================================= */
+:root {
+  --font: 'Hind Siliguri', 'Noto Sans Bengali', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --header-bg: #12594c;
+  --header-fg: #ffffff;
+  --header-muted: rgba(255, 255, 255, 0.78);
+  --live: #b6f5c9;
+
+  --app-bg: #ece5d8;
+  --pattern: rgba(18, 89, 76, 0.07);
+  --surface: #ffffff;
+  --surface-2: #f4f1ea;
+  --border: rgba(0, 0, 0, 0.08);
+
+  --text: #17211e;
+  --muted: #66746f;
+
+  --mine: #d5f3c4;
+  --mine-text: #102016;
+  --theirs: #ffffff;
+  --theirs-text: #17211e;
+  --meta: rgba(17, 33, 28, 0.5);
+
+  --accent: #1f8a70;
+  --accent-strong: #146b56;
+  --seen: #2a8be6;
+  --danger: #d14334;
+
+  --day-chip: rgba(255, 255, 255, 0.92);
+  --shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
+  --menu-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+
+  --radius: 12px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --header-bg: #16231f;
+    --header-fg: #e8efec;
+    --header-muted: rgba(232, 239, 236, 0.7);
+    --live: #6fe39a;
+
+    --app-bg: #0c1311;
+    --pattern: rgba(255, 255, 255, 0.025);
+    --surface: #16211e;
+    --surface-2: #1d2a26;
+    --border: rgba(255, 255, 255, 0.08);
+
+    --text: #e6eeeb;
+    --muted: #8e9e98;
+
+    --mine: #1d4e3f;
+    --mine-text: #e9f5ef;
+    --theirs: #1b2724;
+    --theirs-text: #e6eeeb;
+    --meta: rgba(230, 238, 235, 0.55);
+
+    --accent: #2fa784;
+    --accent-strong: #3cbf97;
+    --seen: #53bdf5;
+    --danger: #f06a5b;
+
+    --day-chip: #1b2724;
+    --shadow: 0 1px 0.5px rgba(0, 0, 0, 0.4);
+    --menu-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+}
+
+/* =========================================================
+   বেস
+   ========================================================= */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--app-bg);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* =========================================================
+   স্পিনার ও স্প্ল্যাশ
+   ========================================================= */
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.spinner-dark {
+  border-color: var(--border);
+  border-top-color: var(--accent);
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.splash {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.notice {
+  max-width: 360px;
+  text-align: center;
+  background: var(--surface);
+  padding: 28px 24px;
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+.notice h2 {
+  margin: 0 0 6px;
+  font-size: 1.2rem;
+}
+.notice .primary-btn {
+  margin-top: 16px;
+}
+
+/* =========================================================
+   লগইন
+   ========================================================= */
+.login {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(31, 138, 112, 0.18), transparent 55%),
+    radial-gradient(circle at 100% 100%, rgba(196, 87, 47, 0.1), transparent 50%),
+    var(--app-bg);
+}
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border-radius: 22px;
+  padding: 32px 24px 26px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+.login-logo {
+  border-radius: 20px;
+  box-shadow: 0 6px 18px rgba(18, 89, 76, 0.3);
+}
+.login-card h1 {
+  margin: 14px 0 2px;
+  font-size: 1.8rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.login-form {
+  margin-top: 22px;
+  display: grid;
+  gap: 14px;
+  text-align: left;
+}
+.login-form label {
+  display: grid;
+  gap: 5px;
+}
+.login-form label > span {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.login-form input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.login-form input:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.pass-field {
+  position: relative;
+}
+.pass-field input {
+  padding-right: 70px;
+}
+.pass-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 6px 10px;
+}
+.form-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.92rem;
+}
+.primary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 1.02rem;
+  transition: background 0.15s, transform 0.1s;
+}
+.primary-btn:hover {
+  background: var(--accent-strong);
+}
+.primary-btn:active {
+  transform: scale(0.98);
+}
+.primary-btn:disabled {
+  opacity: 0.75;
+}
+
+/* =========================================================
+   চ্যাট লেআউট
+   ========================================================= */
+.chat {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  max-width: 920px;
+  margin: 0 auto;
+  background: var(--app-bg);
+  position: relative;
+}
+@media (min-width: 940px) {
+  body {
+    background: color-mix(in srgb, var(--app-bg) 70%, #000 6%);
+  }
+  .chat {
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.12);
+  }
+}
+
+/* হেডার */
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px 10px 14px;
+  padding-top: max(10px, env(safe-area-inset-top));
+  background: var(--header-bg);
+  color: var(--header-fg);
+  flex-shrink: 0;
+  z-index: 5;
+}
+.header-text {
+  flex: 1;
+  min-width: 0;
+}
+.header-name {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.header-status {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--header-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 1.2em;
+}
+.header-status.is-live {
+  color: var(--live);
+}
+
+.avatar {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 600;
+  line-height: 1;
+}
+.avatar-empty {
+  background: rgba(255, 255, 255, 0.2);
+}
+.avatar-dot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #37d67a;
+  border: 2px solid var(--header-bg);
+}
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  transition: background 0.15s;
+}
+.icon-btn:hover {
+  background: rgba(127, 127, 127, 0.14);
+}
+.icon-btn.on-header {
+  color: var(--header-fg);
+}
+.icon-btn:disabled {
+  opacity: 0.5;
+}
+
+/* হেডার মেনু */
+.menu-wrap {
+  position: relative;
+}
+.menu {
+  position: absolute;
+  right: 4px;
+  top: calc(100% + 4px);
+  min-width: 220px;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 14px;
+  box-shadow: var(--menu-shadow);
+  padding: 6px;
+  z-index: 20;
+  animation: pop 0.14s ease-out;
+  transform-origin: top right;
+}
+.menu-me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+.menu button,
+.bubble-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.menu button:hover,
+.bubble-menu button:hover {
+  background: var(--surface-2);
+}
+.menu button svg,
+.bubble-menu button svg {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.menu .danger,
+.bubble-menu .danger,
+.menu .danger svg,
+.bubble-menu .danger svg {
+  color: var(--danger);
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+
+.conn-banner {
+  background: #f6c344;
+  color: #3b2d00;
+  text-align: center;
+  font-size: 0.85rem;
+  padding: 5px 12px;
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   মেসেজ তালিকা
+   ========================================================= */
+.messages-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.messages {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background-color: var(--app-bg);
+  background-image:
+    radial-gradient(var(--pattern) 1.2px, transparent 1.3px),
+    radial-gradient(var(--pattern) 1.2px, transparent 1.3px);
+  background-size: 26px 26px;
+  background-position: 0 0, 13px 13px;
+}
+.messages-inner {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 6px 12px 10px;
+}
+@media (min-width: 700px) {
+  .messages-inner {
+    padding: 6px 7% 12px;
+  }
+}
+
+.top-sentinel {
+  display: grid;
+  place-items: center;
+  min-height: 34px;
+  padding: 6px 0;
+}
+.chat-start {
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: var(--day-chip);
+  padding: 5px 12px;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.empty {
+  margin: auto;
+  text-align: center;
+  padding: 30px 20px;
+}
+.empty p {
+  margin: 4px 0;
+}
+.empty-art {
+  font-size: 46px;
+  margin-bottom: 6px;
+}
+
+.day-sep {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0 8px;
+  position: sticky;
+  top: 6px;
+  z-index: 2;
+}
+.day-sep span {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--day-chip);
+  padding: 4px 12px;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+/* সারি */
+.row {
+  display: flex;
+  flex-direction: column;
+  margin-top: 2px;
+}
+.row-first {
+  margin-top: 8px;
+}
+.row-mine {
+  align-items: flex-end;
+}
+.row-theirs {
+  align-items: flex-start;
+}
+
+/* বাবল */
+.bubble {
+  position: relative;
+  max-width: min(78%, 520px);
+  padding: 6px 9px 7px 10px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  user-select: text;
+  -webkit-touch-callout: none;
+  animation: bubble-in 0.16s ease-out;
+}
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.bubble-mine {
+  background: var(--mine);
+  color: var(--mine-text);
+}
+.bubble-theirs {
+  background: var(--theirs);
+  color: var(--theirs-text);
+}
+.bubble.is-active {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent), var(--shadow);
+}
+.bubble.is-failed {
+  opacity: 0.85;
+}
+
+/* লেজ (tail) */
+.bubble.has-tail.bubble-mine {
+  border-top-right-radius: 3px;
+}
+.bubble.has-tail.bubble-theirs {
+  border-top-left-radius: 3px;
+}
+.bubble.has-tail::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 9px;
+  height: 13px;
+}
+.bubble.has-tail.bubble-mine::before {
+  right: -8px;
+  background: var(--mine);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+.bubble.has-tail.bubble-theirs::before {
+  left: -8px;
+  background: var(--theirs);
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+
+.bubble-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.98rem;
+}
+.bubble-text a {
+  color: var(--seen);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* সময় + টিকের জন্য জায়গা রাখা */
+.meta-spacer {
+  display: inline-block;
+  width: 58px;
+  height: 1px;
+}
+.bubble-mine .meta-spacer {
+  width: 76px;
+}
+
+.meta {
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7rem;
+  line-height: 1;
+  color: var(--meta);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.st {
+  color: var(--meta);
+}
+.st-seen {
+  color: var(--seen);
+}
+.st-failed {
+  color: var(--danger);
+}
+
+/* শুধু ইমোজি */
+.bubble.is-emoji {
+  background: transparent;
+  box-shadow: none;
+  padding: 0 4px 16px;
+}
+.bubble.is-emoji::before {
+  display: none;
+}
+.bubble.is-emoji .bubble-text {
+  font-size: 2.6rem;
+  line-height: 1.15;
+}
+.bubble.is-emoji .meta-spacer {
+  display: none;
+}
+.bubble.is-emoji .meta {
+  bottom: 0;
+  background: var(--day-chip);
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+/* ছবি */
+.bubble.is-image {
+  padding: 3px;
+}
+.bubble-img {
+  display: block;
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 9px;
+  overflow: hidden;
+  line-height: 0;
+}
+.bubble-img img {
+  display: block;
+  max-width: min(280px, 68vw);
+  max-height: 360px;
+  min-width: 120px;
+  min-height: 80px;
+  object-fit: cover;
+}
+.img-skeleton {
+  display: block;
+  width: 220px;
+  height: 220px;
+  max-width: 68vw;
+  background: linear-gradient(110deg, var(--surface-2) 30%, var(--border) 50%, var(--surface-2) 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+.img-uploading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.28);
+}
+.bubble.is-image .meta {
+  right: 9px;
+  bottom: 8px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.38);
+  padding: 3px 6px;
+  border-radius: 8px;
+}
+.bubble.is-image .meta .st {
+  color: #fff;
+}
+.bubble.is-image .meta .st-seen {
+  color: #9fd8ff;
+}
+
+/* বাবলের অপশন বোতাম (ডেস্কটপে হোভারে বাবলের পাশে দেখা যায়) */
+.bubble-caret {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  color: var(--muted);
+  background: var(--day-chip);
+  box-shadow: var(--shadow);
+}
+.bubble-mine .bubble-caret {
+  left: -36px;
+}
+.bubble-theirs .bubble-caret {
+  right: -36px;
+}
+@media (hover: hover) {
+  .bubble:hover .bubble-caret,
+  .bubble.is-active .bubble-caret {
+    display: grid;
+  }
+}
+/* হোভার এলাকা বাবলের পাশ পর্যন্ত বাড়ানো, যাতে বোতামে পৌঁছানো যায় */
+.bubble::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40px;
+}
+.bubble-mine::after {
+  left: -40px;
+}
+.bubble-theirs::after {
+  right: -40px;
+}
+.bubble.is-emoji .bubble-caret {
+  top: 40%;
+}
+
+.bubble-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  min-width: 170px;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 12px;
+  box-shadow: var(--menu-shadow);
+  padding: 5px;
+  z-index: 10;
+  animation: pop 0.12s ease-out;
+}
+.menu-left {
+  right: 0;
+  transform-origin: top right;
+}
+.bubble-menu.menu-up {
+  top: auto;
+  bottom: calc(100% + 4px);
+  transform-origin: bottom center;
+}
+.menu-right {
+  left: 0;
+  transform-origin: top left;
+}
+
+.retry-chip {
+  margin-top: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--danger);
+  font-size: 0.78rem;
+  padding: 2px 4px;
+}
+
+/* টাইপিং বাবল */
+.typing-bubble {
+  display: inline-flex;
+  gap: 4px;
+  padding: 12px 14px;
+}
+.typing-bubble span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.4;
+  animation: blink 1.2s infinite ease-in-out;
+}
+.typing-bubble span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.typing-bubble span:nth-child(3) {
+  animation-delay: 0.36s;
+}
+@keyframes blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* নিচে যাওয়ার বোতাম */
+.jump {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  box-shadow: var(--menu-shadow);
+  z-index: 4;
+}
+.jump-count {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+}
+
+/* =========================================================
+   কম্পোজার (মেসেজ লেখার জায়গা)
+   ========================================================= */
+.composer {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 8px 8px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  background: var(--app-bg);
+  flex-shrink: 0;
+}
+.composer-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  background: var(--surface);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+  padding: 4px 16px;
+}
+.composer textarea {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  padding: 7px 0;
+  min-height: 38px;
+  max-height: 150px;
+  line-height: 1.45;
+  font-size: 1rem;
+}
+.composer textarea::placeholder {
+  color: var(--muted);
+}
+.composer-attach {
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+}
+.send-btn {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--shadow);
+  transition: transform 0.1s, background 0.15s, opacity 0.15s;
+}
+.send-btn:hover {
+  background: var(--accent-strong);
+}
+.send-btn:active {
+  transform: scale(0.92);
+}
+.send-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.send-btn svg {
+  margin-left: 2px;
+}
+.composer-error {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  background: #2b2b2b;
+  color: #fff;
+  font-size: 0.85rem;
+  padding: 7px 14px;
+  border-radius: 10px;
+  white-space: nowrap;
+  max-width: calc(100% - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 6;
+}
+
+/* =========================================================
+   ছবি ভিউয়ার
+   ========================================================= */
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 56px 12px 20px;
+  background: rgba(0, 0, 0, 0.92);
+  animation: fade 0.15s ease-out;
+}
+.viewer img {
+  max-width: 100%;
+  max-height: calc(100dvh - 90px);
+  object-fit: contain;
+  border-radius: 6px;
+}
+.viewer-close {
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top));
+  right: 8px;
+  color: #fff;
+}
+.viewer-open {
+  position: absolute;
+  top: max(16px, calc(env(safe-area-inset-top) + 8px));
+  left: 16px;
+  color: #fff;
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* মোবাইলে লং-প্রেস করলে টেক্সট সিলেক্ট না হয়ে মেনু খুলবে (কপি মেনুতে আছে) */
+@media (pointer: coarse) {
+  .bubble {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+.messages {
+  overflow-anchor: none;
+}
+
+/* =========================================================
+   নোটিফিকেশন চালুর ব্যানার
+   ========================================================= */
+.push-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px 8px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  animation: fade 0.2s ease-out;
+}
+.push-banner p {
+  flex: 1;
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  color: var(--text);
+}
+.push-banner-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.push-banner-btn {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 18px;
+  padding: 7px 14px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.push-banner-btn:disabled {
+  opacity: 0.6;
+}
+.push-banner-close {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+}
+.menu button:disabled {
+  opacity: 0.5;
+}
+
+/* =========================================================
+   ডায়ালগ (পাসওয়ার্ড পরিবর্তন)
+   ========================================================= */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.45);
+  animation: fade 0.15s ease-out;
+}
+.dialog {
+  width: 100%;
+  max-width: 400px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 18px;
+  padding: 16px 20px 22px;
+  box-shadow: var(--menu-shadow);
+  animation: pop 0.16s ease-out;
+}
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.dialog-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+.dialog-form {
+  margin-top: 8px;
+}
+.check-row {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.check-row input {
+  width: 18px !important;
+  height: 18px;
+  padding: 0 !important;
+  accent-color: var(--accent);
+}
+.check-row span {
+  color: var(--text) !important;
+  font-weight: 400 !important;
+}
+.hint {
+  margin: -4px 0 0;
+  font-size: 0.82rem;
+}
+.pw-meter {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem !important;
+}
+.pw-bar {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+.pw-bar i {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+}
+.level-1 .pw-bar i:nth-child(-n + 1) {
+  background: var(--danger);
+}
+.level-2 .pw-bar i:nth-child(-n + 2) {
+  background: #e0a526;
+}
+.level-3 .pw-bar i {
+  background: var(--accent);
+}
+.level-1 {
+  color: var(--danger) !important;
+}
+.dialog-done {
+  text-align: center;
+  padding: 12px 0 0;
+}
+.dialog-done p {
+  margin: 4px 0;
+}
+.dialog-done .primary-btn {
+  margin-top: 16px;
+}
+.done-check {
+  width: 56px;
+  height: 56px;
+  margin: 4px auto 10px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: #fff;
+  font-size: 28px;
+}

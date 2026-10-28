@@ -1,0 +1,26 @@
+{
+  "name": "dujone-chat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "দুজনে — শুধু দুইজনের জন্য একটি প্রাইভেট রিয়েল-টাইম চ্যাট অ্যাপ (Next.js + Supabase)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "vapid": "web-push generate-vapid-keys"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "next": "^16.4.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/web-push": "^3.6.4",
+    "typescript": "^5.9.3"
+  }
+}
