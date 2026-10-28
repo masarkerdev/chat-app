@@ -358,7 +358,7 @@ function MessageBubbleBase({
 
       {msg.failed && (
         <button className="retry-chip" onClick={() => onRetry(msg.id)}>
-          পাঠানো যায়নি, আবার চেষ্টা করুন
+          {msg.errorText ?? 'পাঠানো যায়নি'}। আবার চেষ্টা করতে চাপুন
         </button>
       )}
     </div>

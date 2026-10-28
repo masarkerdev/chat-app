@@ -51,7 +51,7 @@ export default function LoginPage() {
           <path className="thread-them" d="M4 52 C 60 4, 100 4, 120 35 S 180 66, 236 18" />
           <path className="thread-me" d="M4 18 C 60 66, 100 66, 120 35 S 180 4, 236 52" />
         </svg>
-        <h1 className="wordmark">দুজনে</h1>
+        <h1 className="wordmark">Dujone</h1>
         <p className="login-sub">দুটি সুতো, একটি কাঁথা। শুধু আপনাদের দুজনের কথা।</p>
 
         <form onSubmit={submit} className="login-form">

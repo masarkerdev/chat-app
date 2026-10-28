@@ -1,11 +1,11 @@
-/* দুজনে — service worker
+/* Dujone — service worker
  * - অ্যাপ ইনস্টলযোগ্য (PWA) করে
  * - স্ট্যাটিক ফাইল (JS/CSS/আইকন) ক্যাশ করে দ্রুত খোলার জন্য
  * - Web Push: অ্যাপ বন্ধ থাকলেও নতুন মেসেজের নোটিফিকেশন দেখায়
  * - নোটিফিকেশনে ট্যাপ করলে চ্যাট খুলে দেয়
  * মেসেজ বা Supabase রিকোয়েস্ট কখনো ক্যাশ করা হয় না।
  */
-const CACHE = 'dujone-static-v3';
+const CACHE = 'dujone-static-v4';
 const TAG = 'dujone-message';
 const IS_DEV = ['localhost', '127.0.0.1'].includes(self.location.hostname);
 
@@ -79,7 +79,7 @@ self.addEventListener('push', (event) => {
       );
       if (chatVisible) return;
 
-      const sender = data.title || 'দুজনে';
+      const sender = data.title || 'Dujone';
       const body = data.body || 'নতুন মেসেজ';
 
       // একাধিক মেসেজ এলে একটিই নোটিফিকেশনে জমা হবে (শেষ ৫টি লাইন)

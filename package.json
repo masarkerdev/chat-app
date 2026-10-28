@@ -2,7 +2,7 @@
   "name": "dujone-chat",
   "version": "1.0.0",
   "private": true,
-  "description": "দুজনে — শুধু দুইজনের জন্য একটি প্রাইভেট রিয়েল-টাইম চ্যাট অ্যাপ (Next.js + Supabase)",
+  "description": "Dujone — শুধু দুইজনের জন্য একটি প্রাইভেট রিয়েল-টাইম চ্যাট অ্যাপ (Next.js + Supabase)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

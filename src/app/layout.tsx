@@ -5,14 +5,15 @@ import { THEME_BOOT_SCRIPT } from '@/lib/theme';
 // ফন্ট অ্যাপের সাথেই থাকে — Google Fonts লাগে না, অফলাইনেও কাজ করে
 import '@fontsource-variable/anek-bangla/wdth.css';
 import '@fontsource/galada/bengali-400.css';
+import '@fontsource/galada/latin-400.css';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'দুজনে',
+  title: 'Dujone',
   description: 'শুধু আমাদের দুজনের প্রাইভেট চ্যাট',
   manifest: '/manifest.webmanifest',
-  applicationName: 'দুজনে',
-  appleWebApp: { capable: true, title: 'দুজনে', statusBarStyle: 'default' },
+  applicationName: 'Dujone',
+  appleWebApp: { capable: true, title: 'Dujone', statusBarStyle: 'default' },
   icons: {
     icon: [
       { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },

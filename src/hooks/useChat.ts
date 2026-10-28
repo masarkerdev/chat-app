@@ -10,11 +10,30 @@ import type { Message, Profile, Reaction } from '@/lib/types';
 
 const ROOM = 'room:dujone';
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const BASE_TITLE = 'দুজনে';
+const BASE_TITLE = 'Dujone';
 /** মেসেজের সাথে রিঅ্যাকশনও একসাথে আনে */
 const MSG_COLS = 'id, sender_id, content, image_path, created_at, seen_at, reply_to, reactions:message_reactions(user_id, emoji)';
 
 type Status = 'loading' | 'ready' | 'not-member' | 'error';
+
+/** Supabase-এর ইংরেজি এররকে বোঝার মতো বাংলায় */
+export function explainError(err: { message?: string; code?: string } | null | undefined): string {
+  if (!err) return 'পাঠানো যায়নি';
+  const m = (err.message ?? '').toLowerCase();
+  // কলাম/টেবিল/সম্পর্ক পাওয়া যায়নি = নতুন schema.sql চালানো হয়নি
+  if (
+    ['PGRST204', 'PGRST200', 'PGRST205', '42703', '42P01'].includes(err.code ?? '') ||
+    m.includes('column') ||
+    m.includes('relationship') ||
+    m.includes('schema cache')
+  )
+    return 'ডাটাবেস আপডেট হয়নি: Supabase-এ নতুন schema.sql আবার Run করুন';
+  if (err.code === '42501' || m.includes('row-level security')) return 'অনুমতি নেই: আপনি এই চ্যাটের সদস্য কিনা দেখুন';
+  if (m.includes('jwt') || m.includes('token')) return 'লগইনের মেয়াদ শেষ: আবার লগইন করুন';
+  if (m.includes('fetch') || m.includes('network') || m.includes('failed to')) return 'ইন্টারনেট সংযোগ নেই';
+  if (m.includes('payload too large') || m.includes('exceeded')) return 'ফাইল খুব বড়';
+  return 'পাঠানো যায়নি';
+}
 
 function uuid() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
@@ -67,6 +86,8 @@ export function useChat() {
   const [connected, setConnected] = useState(true);
   /** তালিকায় নেই এমন পুরোনো মেসেজ, যার রিপ্লাই দেখানো হচ্ছে */
   const [quotes, setQuotes] = useState<Record<string, Message | null>>({});
+  /** মেসেজ লোড করতে সমস্যা হলে উপরে দেখানোর বার্তা */
+  const [loadError, setLoadError] = useState('');
 
   const meRef = useRef<Profile | null>(null);
   const partnerRef = useRef<Profile | null>(null);
@@ -134,7 +155,12 @@ export function useChat() {
       .select(MSG_COLS)
       .order('created_at', { ascending: false })
       .limit(PAGE_SIZE);
-    if (error || !data) return;
+    if (error || !data) {
+      console.error('মেসেজ লোড করা যায়নি', error);
+      setLoadError(explainError(error));
+      return;
+    }
+    setLoadError('');
     const rows = (data as Message[]).reverse();
     setMessages((l) => (initial ? rows : merge(l, rows)));
     if (initial) setHasMore(rows.length === PAGE_SIZE);
@@ -322,7 +348,8 @@ export function useChat() {
         upsert: true,
       });
       if (upErr) {
-        setState({ pending: false, failed: true });
+        console.error('ছবি আপলোড ব্যর্থ', upErr);
+        setState({ pending: false, failed: true, errorText: explainError(upErr) });
         return;
       }
     }
@@ -336,10 +363,11 @@ export function useChat() {
     });
     // ২৩৫০৫ = আগেই পৌঁছে গেছে (আবার পাঠানোর সময়), সেটা সফল ধরি
     if (error && error.code !== '23505') {
-      setState({ pending: false, failed: true });
+      console.error('মেসেজ পাঠানো ব্যর্থ', error);
+      setState({ pending: false, failed: true, errorText: explainError(error) });
       return;
     }
-    setState({ pending: false, failed: false });
+    setState({ pending: false, failed: false, errorText: undefined });
     // অপর পক্ষের ফোনে push (সার্ভার নিশ্চিত করে একই মেসেজে একবারই যাবে)
     notifyPartner(msg.id);
   }, []);
@@ -534,6 +562,7 @@ export function useChat() {
     deleteMessage,
     react,
     quotes,
+    loadError,
     loadOlder,
     sendTyping,
     updateName,

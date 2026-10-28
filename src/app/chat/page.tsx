@@ -78,6 +78,11 @@ export default function ChatPage() {
       <PushBanner push={push} />
 
       {!chat.connected && <div className="conn-banner">সংযোগ বিচ্ছিন্ন। আবার যুক্ত হওয়ার চেষ্টা চলছে…</div>}
+      {chat.loadError && (
+        <div className="conn-banner" role="alert">
+          মেসেজ লোড করা যায়নি। {chat.loadError}
+        </div>
+      )}
 
       <MessageList
         messages={chat.messages}

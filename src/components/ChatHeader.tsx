@@ -91,7 +91,7 @@ export function ChatHeader({ me, partner, online, typing, connected, push, onRen
       </div>
 
       <div className="header-text">
-        <h1 className="header-name">{partner?.display_name ?? 'দুজনে'}</h1>
+        <h1 className="header-name">{partner?.display_name ?? 'Dujone'}</h1>
         <p className={statusClass} aria-live="polite">
           {statusLine}
         </p>
