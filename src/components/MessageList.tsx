@@ -135,16 +135,17 @@ export function MessageList({ messages, meId, hasMore, loadingOlder, typing, onL
         <div className="messages-inner" ref={innerRef}>
         <div ref={topRef} className="top-sentinel">
           {loadingOlder && <span className="spinner spinner-dark" aria-label="লোড হচ্ছে" />}
-          {!hasMore && messages.length > 0 && <span className="chat-start">🔒 এই চ্যাট শুধু আপনাদের দুজনের</span>}
+          {!hasMore && messages.length > 0 && <span className="chat-start">এখান থেকে শুরু। এই কথাগুলো শুধু আপনাদের দুজনের।</span>}
         </div>
 
         {messages.length === 0 && (
           <div className="empty">
-            <div className="empty-art" aria-hidden>
-              💬
-            </div>
-            <p>এখনো কোনো মেসেজ নেই।</p>
-            <p className="muted">প্রথম মেসেজটি পাঠিয়ে কথা শুরু করুন।</p>
+            <svg className="empty-art" viewBox="0 0 160 60" aria-hidden>
+              <path className="thread-them" d="M4 40 C 40 4, 70 4, 80 30 S 120 56, 156 20" />
+              <path className="thread-me" d="M4 20 C 40 56, 70 56, 80 30 S 120 4, 156 40" />
+            </svg>
+            <p className="empty-title">প্রথম ফোঁড়টা আপনিই দিন</p>
+            <p className="muted">নিচে লিখে একটা মেসেজ পাঠান।</p>
           </div>
         )}
 

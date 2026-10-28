@@ -5,7 +5,7 @@
  * - নোটিফিকেশনে ট্যাপ করলে চ্যাট খুলে দেয়
  * মেসেজ বা Supabase রিকোয়েস্ট কখনো ক্যাশ করা হয় না।
  */
-const CACHE = 'dujone-static-v2';
+const CACHE = 'dujone-static-v3';
 const TAG = 'dujone-message';
 const IS_DEV = ['localhost', '127.0.0.1'].includes(self.location.hostname);
 
@@ -88,7 +88,7 @@ self.addEventListener('push', (event) => {
       const lines = [...(prev.lines || []), body].slice(-5);
       const count = (prev.count || 0) + 1;
 
-      const title = count > 1 ? `${sender} · ${count.toLocaleString('bn-BD')}টি নতুন মেসেজ` : sender;
+      const title = count > 1 ? `${sender} (${count.toLocaleString('bn-BD')}টি নতুন মেসেজ)` : sender;
 
       await self.registration.showNotification(title, {
         body: count > 1 ? lines.join('\n') : body,

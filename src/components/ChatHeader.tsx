@@ -78,11 +78,15 @@ export function ChatHeader({ me, partner, online, typing, connected, push, onRen
 
   return (
     <header className="chat-header">
-      {partner ? (
-        <Avatar name={partner.display_name} id={partner.id} online={online && connected} />
-      ) : (
-        <span className="avatar avatar-empty" style={{ width: 40, height: 40 }} />
-      )}
+      {/* দুজনের দুই সুতো: অপর জনের অবতারের সাথে নিজের ছোট অবতার জোড়া */}
+      <div className="avatar-pair" aria-hidden={!partner}>
+        {partner ? (
+          <Avatar name={partner.display_name} tone="them" online={online && connected} size={42} />
+        ) : (
+          <span className="avatar avatar-empty" style={{ width: 42, height: 42 }} />
+        )}
+        <Avatar name={me.display_name} tone="me" size={26} />
+      </div>
 
       <div className="header-text">
         <h1 className="header-name">{partner?.display_name ?? 'দুজনে'}</h1>
@@ -98,7 +102,7 @@ export function ChatHeader({ me, partner, online, typing, connected, push, onRen
         {open && (
           <div className="menu" role="menu">
             <div className="menu-me">
-              <Avatar name={me.display_name} id={me.id} size={32} />
+              <Avatar name={me.display_name} tone="me" size={32} />
               <span>{me.display_name}</span>
             </div>
             <button role="menuitem" onClick={rename}>

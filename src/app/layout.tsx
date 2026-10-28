@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import { PwaRegister } from '@/components/PwaRegister';
+// ফন্ট অ্যাপের সাথেই থাকে — Google Fonts লাগে না, অফলাইনেও কাজ করে
+import '@fontsource-variable/anek-bangla/wdth.css';
+import '@fontsource/galada/bengali-400.css';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -7,7 +10,7 @@ export const metadata: Metadata = {
   description: 'শুধু আমাদের দুজনের প্রাইভেট চ্যাট',
   manifest: '/manifest.webmanifest',
   applicationName: 'দুজনে',
-  appleWebApp: { capable: true, title: 'দুজনে', statusBarStyle: 'black-translucent' },
+  appleWebApp: { capable: true, title: 'দুজনে', statusBarStyle: 'default' },
   icons: {
     icon: [
       { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
@@ -25,23 +28,14 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
   interactiveWidget: 'resizes-content',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#12594c' },
-    { media: '(prefers-color-scheme: dark)', color: '#111c19' },
+    { media: '(prefers-color-scheme: light)', color: '#e4e8ef' },
+    { media: '(prefers-color-scheme: dark)', color: '#0d1225' },
   ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="bn">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body>
         {children}
         <PwaRegister />

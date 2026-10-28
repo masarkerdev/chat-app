@@ -4,7 +4,7 @@ import { memo, useLayoutEffect, useRef, useState } from 'react';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { formatTime, isEmojiOnly, splitLinks } from '@/lib/format';
 import type { Message } from '@/lib/types';
-import { AlertIcon, ArrowDownIcon, ClockIcon, CopyIcon, DoubleTickIcon, RetryIcon, TickIcon, TrashIcon } from './Icons';
+import { AlertIcon, ArrowDownIcon, CopyIcon, RetryIcon, TrashIcon } from './Icons';
 
 type Props = {
   msg: Message;
@@ -17,11 +17,17 @@ type Props = {
   onRetry: (id: string) => void;
 };
 
+/**
+ * মেসেজের অবস্থা — দুই ফোঁটা সুতোর গিঁট:
+ *   ফাঁপা বৃত্ত = পাঠানো হচ্ছে, একটি গিঁট = পৌঁছেছে, দুটি জোড়া গিঁট = দেখেছে
+ */
 function Status({ msg }: { msg: Message }) {
   if (msg.failed) return <AlertIcon className="st st-failed" size={15} />;
-  if (msg.pending) return <ClockIcon className="st" size={13} />;
-  if (msg.seen_at) return <DoubleTickIcon className="st st-seen" size={18} />;
-  return <TickIcon className="st" size={16} />;
+  if (msg.pending)
+    return <span className="knots knots-pending" role="img" aria-label="পাঠানো হচ্ছে"><i /></span>;
+  if (msg.seen_at)
+    return <span className="knots knots-seen" role="img" aria-label="দেখেছে"><i /><i /></span>;
+  return <span className="knots" role="img" aria-label="পৌঁছেছে"><i /></span>;
 }
 
 function BubbleImage({ msg, onOpen }: { msg: Message; onOpen: (url: string) => void }) {
