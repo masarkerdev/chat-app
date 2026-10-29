@@ -4,7 +4,7 @@ import { memo, useLayoutEffect, useRef, useState } from 'react';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { formatTime, isEmojiOnly, snippet, splitLinks } from '@/lib/format';
 import { QUICK_REACTIONS, type Message } from '@/lib/types';
-import { AlertIcon, ArrowDownIcon, CopyIcon, ReplyIcon, RetryIcon, TrashIcon } from './Icons';
+import { AlertIcon, ArrowDownIcon, CopyIcon, PenIcon, ReplyIcon, RetryIcon, TrashIcon } from './Icons';
 
 export type Quote = {
   /** মূল মেসেজ; null = পাওয়া যায়নি / মুছে গেছে */
@@ -27,6 +27,7 @@ type Props = {
   onDelete: (id: string) => void;
   onRetry: (id: string) => void;
   onReply: (msg: Message) => void;
+  onEdit: (msg: Message) => void;
   onReact: (id: string, emoji: string) => void;
   onJumpTo: (id: string) => void;
 };
@@ -70,6 +71,7 @@ function MessageBubbleBase({
   onDelete,
   onRetry,
   onReply,
+  onEdit,
   onReact,
   onJumpTo,
 }: Props) {
@@ -215,6 +217,7 @@ function MessageBubbleBase({
             emojiOnly ? 'is-emoji' : '',
             active ? 'is-active' : '',
             msg.failed ? 'is-failed' : '',
+            msg.edited_at ? 'is-edited' : '',
           ].join(' ')}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -264,6 +267,7 @@ function MessageBubbleBase({
           )}
 
           <span className="meta">
+            {msg.edited_at && <span className="edited">সম্পাদিত</span>}
             <time dateTime={msg.created_at}>{formatTime(msg.created_at)}</time>
             {mine && <Status msg={msg} />}
           </span>
@@ -312,6 +316,17 @@ function MessageBubbleBase({
                   }}
                 >
                   <ReplyIcon /> রিপ্লাই
+                </button>
+              )}
+              {mine && sent && !msg.image_path && (
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    close();
+                    onEdit(msg);
+                  }}
+                >
+                  <PenIcon /> এডিট
                 </button>
               )}
               {msg.failed && (

@@ -8,14 +8,34 @@ import { ChatHeader } from '@/components/ChatHeader';
 import { MessageList } from '@/components/MessageList';
 import { Composer } from '@/components/Composer';
 import { getSupabase } from '@/lib/supabase';
+import { AppLockGate } from '@/components/AppLock';
 import { snippet } from '@/lib/format';
 import type { Message } from '@/lib/types';
 
 export default function ChatPage() {
+  return (
+    <AppLockGate>
+      <ChatScreen />
+    </AppLockGate>
+  );
+}
+
+function ChatScreen() {
   const chat = useChat();
   const push = usePush();
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editing, setEditing] = useState<Message | null>(null);
   const cancelReply = useCallback(() => setReplyTo(null), []);
+  const cancelEdit = useCallback(() => setEditing(null), []);
+  // রিপ্লাই আর এডিট একসাথে চলে না
+  const startReply = useCallback((m: Message) => {
+    setEditing(null);
+    setReplyTo(m);
+  }, []);
+  const startEdit = useCallback((m: Message) => {
+    setReplyTo(null);
+    setEditing(m);
+  }, []);
 
   if (chat.status === 'loading') {
     return (
@@ -53,6 +73,11 @@ export default function ChatPage() {
   const partnerName = chat.partner?.display_name ?? 'অপর জন';
 
   const send = (text: string) => {
+    if (editing) {
+      chat.editMessage(editing.id, text);
+      setEditing(null);
+      return;
+    }
     chat.sendText(text, replyTo?.id);
     setReplyTo(null);
   };
@@ -95,7 +120,8 @@ export default function ChatPage() {
         onLoadOlder={chat.loadOlder}
         onDelete={chat.deleteMessage}
         onRetry={chat.retry}
-        onReply={setReplyTo}
+        onReply={startReply}
+        onEdit={startEdit}
         onReact={chat.react}
       />
 
@@ -106,6 +132,8 @@ export default function ChatPage() {
             : null
         }
         onCancelReply={cancelReply}
+        editing={editing ? { text: editing.content ?? '' } : null}
+        onCancelEdit={cancelEdit}
         onSend={send}
         onImage={sendImage}
         onTyping={chat.sendTyping}

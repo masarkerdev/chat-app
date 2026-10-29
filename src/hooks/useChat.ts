@@ -6,13 +6,15 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabase, IMAGE_BUCKET, PAGE_SIZE } from '@/lib/supabase';
 import { compressImage, extFor } from '@/lib/image';
 import { clearNotifications, disablePush, isPushActive, notifyPartner, syncPush } from '@/lib/push';
+import { clearLock, isLocked } from '@/lib/applock';
 import type { Message, Profile, Reaction } from '@/lib/types';
 
 const ROOM = 'room:dujone';
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const BASE_TITLE = 'Dujone';
 /** মেসেজের সাথে রিঅ্যাকশনও একসাথে আনে */
-const MSG_COLS = 'id, sender_id, content, image_path, created_at, seen_at, reply_to, reactions:message_reactions(user_id, emoji)';
+const MSG_COLS =
+  'id, sender_id, content, image_path, created_at, seen_at, edited_at, reply_to, reactions:message_reactions(user_id, emoji)';
 
 type Status = 'loading' | 'ready' | 'not-member' | 'error';
 
@@ -108,7 +110,8 @@ export function useChat() {
   }, []);
 
   const markSeen = useCallback(() => {
-    if (document.visibilityState !== 'visible') return;
+    // লক স্ক্রিন খোলা থাকলে "দেখেছে" দেখানো যাবে না
+    if (document.visibilityState !== 'visible' || isLocked()) return;
     const uid = meRef.current?.id;
     if (!uid) return;
     const hasUnseen = messagesRef.current.some((m) => m.sender_id !== uid && !m.seen_at);
@@ -307,6 +310,7 @@ export function useChat() {
 
       document.addEventListener('visibilitychange', onVisibility);
       window.addEventListener('pagehide', touchLastSeen);
+      window.addEventListener('dujone-unlocked', markSeen);
     })();
 
     // টোকেন রিফ্রেশ হলে রিয়েলটাইমেও নতুন টোকেন দিই; লগআউট হলে লগইন পেইজে
@@ -320,6 +324,7 @@ export function useChat() {
       authSub.subscription.unsubscribe();
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', touchLastSeen);
+      window.removeEventListener('dujone-unlocked', markSeen);
       if (heartbeat) clearInterval(heartbeat);
       if (dbChannel) sb.removeChannel(dbChannel);
       if (room) sb.removeChannel(room);
@@ -468,7 +473,28 @@ export function useChat() {
           .from('message_reactions')
           .upsert({ message_id: messageId, user_id: uid, emoji: next }, { onConflict: 'message_id,user_id' })
       : await sb.from('message_reactions').delete().eq('message_id', messageId).eq('user_id', uid);
-    if (error) setMessages((l) => withReaction(l, messageId, uid, current));
+    if (error) {
+      setMessages((l) => withReaction(l, messageId, uid, current));
+      return;
+    }
+    // অপর জনের মেসেজে নতুন রিঅ্যাকশন দিলে তার ফোনে খবর যায়
+    if (next && msg.sender_id !== uid) notifyPartner(messageId, 'reaction');
+  }, []);
+
+  /** নিজের লেখা মেসেজ বদলানো */
+  const editMessage = useCallback(async (id: string, text: string) => {
+    const content = text.trim();
+    const msg = messagesRef.current.find((m) => m.id === id);
+    if (!msg || !content || content === msg.content) return;
+    const before = { content: msg.content, edited_at: msg.edited_at ?? null };
+
+    setMessages((l) => l.map((m) => (m.id === id ? { ...m, content, edited_at: new Date().toISOString() } : m)));
+    const { error } = await getSupabase().from('messages').update({ content }).eq('id', id);
+    if (error) {
+      console.error('এডিট ব্যর্থ', error);
+      setMessages((l) => l.map((m) => (m.id === id ? { ...m, ...before } : m)));
+      alert(`মেসেজ এডিট করা যায়নি। ${explainError(error)}`);
+    }
   }, []);
 
   // রিপ্লাই করা মূল মেসেজ তালিকায় না থাকলে (অনেক পুরোনো) আলাদা করে আনি
@@ -539,8 +565,9 @@ export function useChat() {
 
   const logout = useCallback(async () => {
     touchLastSeen();
-    // লগআউটের পর এই ডিভাইসে আর নোটিফিকেশন আসবে না
+    // লগআউটের পর এই ডিভাইসে আর নোটিফিকেশন আসবে না, আর PIN লকও মুছে যায়
     await disablePush();
+    clearLock();
     await getSupabase().auth.signOut();
     router.replace('/login');
   }, [router, touchLastSeen]);
@@ -561,6 +588,7 @@ export function useChat() {
     retry,
     deleteMessage,
     react,
+    editMessage,
     quotes,
     loadError,
     loadOlder,

@@ -19,6 +19,7 @@ type Props = {
   onDelete: (id: string) => void;
   onRetry: (id: string) => void;
   onReply: (msg: Message) => void;
+  onEdit: (msg: Message) => void;
   onReact: (id: string, emoji: string) => void;
 };
 
@@ -36,6 +37,7 @@ export function MessageList({
   onDelete,
   onRetry,
   onReply,
+  onEdit,
   onReact,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -215,6 +217,7 @@ export function MessageList({
                 onDelete={onDelete}
                 onRetry={onRetry}
                 onReply={onReply}
+                onEdit={onEdit}
                 onReact={onReact}
                 onJumpTo={jumpTo}
               />

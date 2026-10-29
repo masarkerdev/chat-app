@@ -1692,3 +1692,146 @@ button {
 .ghost-btn:hover {
   background: var(--cloth);
 }
+
+/* =========================================================
+   মেসেজ এডিট
+   ========================================================= */
+.edited {
+  font-style: italic;
+  opacity: 0.9;
+}
+.bubble.is-edited .meta-spacer {
+  width: 112px;
+}
+.bubble-mine.is-edited .meta-spacer {
+  width: 132px;
+}
+
+/* =========================================================
+   অ্যাপ লক
+   ========================================================= */
+.lock-content {
+  display: contents;
+}
+.lock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px max(24px, env(safe-area-inset-bottom));
+  background-color: var(--cloth);
+  background-image:
+    repeating-linear-gradient(0deg, var(--weave) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(90deg, var(--weave) 0 1px, transparent 1px 4px);
+  animation: fade 0.15s ease-out;
+}
+.lock-inner {
+  width: 100%;
+  max-width: 300px;
+  text-align: center;
+}
+.lock-mark {
+  margin: 0;
+  font-family: var(--font-mark);
+  font-size: 2.6rem;
+  line-height: 1.1;
+  color: var(--me-ink);
+}
+.lock-title {
+  margin: 6px 0 22px;
+  color: var(--muted);
+}
+/* PIN-এর ঘর: ফাঁকা = সেলাইয়ের বৃত্ত, ভরা = গিঁট */
+.pin-dots {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  min-height: 18px;
+}
+.pin-dots i {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px dashed var(--seam);
+  transition: background 0.12s, border-color 0.12s, transform 0.12s;
+}
+.pin-dots i.is-on {
+  background: var(--indigo);
+  border: 2px solid var(--indigo);
+  transform: scale(1.1);
+}
+.pin-dots.is-shake {
+  animation: shake 0.42s ease-in-out;
+}
+.pin-dots.is-shake i.is-on {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+@keyframes shake {
+  20%,
+  60% {
+    transform: translateX(-9px);
+  }
+  40%,
+  80% {
+    transform: translateX(9px);
+  }
+}
+.lock-error {
+  min-height: 1.5em;
+  margin: 14px 0 10px;
+  color: var(--danger);
+  font-size: 0.92rem;
+}
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 72px);
+  justify-content: center;
+  gap: 14px 22px;
+}
+.keypad button {
+  width: 72px;
+  height: 72px;
+  border: 1.5px solid var(--line);
+  border-radius: 50%;
+  background: var(--paper);
+  font-size: 1.7rem;
+  font-weight: 500;
+  line-height: 1;
+  box-shadow: var(--shadow);
+  transition: background 0.1s, transform 0.08s;
+}
+.keypad button:active {
+  transform: scale(0.94);
+  background: var(--cloth-deep);
+}
+.keypad button:disabled {
+  opacity: 0.4;
+}
+.keypad .key-text {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+.keypad .key-text:last-child {
+  font-size: 1.5rem;
+}
+.lock-intro {
+  margin: 0;
+}
+.danger-text {
+  color: var(--danger);
+}
+@media (max-height: 600px) {
+  .keypad button {
+    width: 60px;
+    height: 60px;
+  }
+  .keypad {
+    grid-template-columns: repeat(3, 60px);
+    gap: 10px 18px;
+  }
+}

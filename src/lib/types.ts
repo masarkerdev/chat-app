@@ -17,6 +17,8 @@ export type Message = {
   image_path: string | null;
   created_at: string;
   seen_at: string | null;
+  /** লেখা পরে বদলানো হলে কখন */
+  edited_at?: string | null;
   /** কোন মেসেজের উত্তরে লেখা */
   reply_to?: string | null;
   /** প্রত্যেকের একটি করে রিঅ্যাকশন */

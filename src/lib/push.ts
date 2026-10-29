@@ -187,7 +187,7 @@ export async function disablePush() {
 }
 
 /** মেসেজ সার্ভারে পৌঁছানোর পর ডাকা হয়; একই মেসেজে দুবার ডাকলেও একবারই push যায় */
-export async function notifyPartner(messageId: string) {
+export async function notifyPartner(messageId: string, kind: 'message' | 'reaction' = 'message') {
   if (!pushConfigured()) return;
   try {
     const {
@@ -197,7 +197,7 @@ export async function notifyPartner(messageId: string) {
     await fetch('/api/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ messageId }),
+      body: JSON.stringify({ messageId, kind }),
       keepalive: true, // অ্যাপ বন্ধ করে দিলেও রিকোয়েস্টটি শেষ হবে
     });
   } catch {
@@ -210,8 +210,11 @@ export async function clearNotifications() {
   if (!pushSupported()) return;
   try {
     const reg = await navigator.serviceWorker.getRegistration('/');
-    const list = (await reg?.getNotifications({ tag: NOTIF_TAG })) ?? [];
-    list.forEach((n) => n.close());
+    // মেসেজ ও রিঅ্যাকশন — দুই ধরনের নোটিফিকেশনই সরাই
+    for (const tag of [NOTIF_TAG, 'dujone-reaction']) {
+      const list = (await reg?.getNotifications({ tag })) ?? [];
+      list.forEach((n) => n.close());
+    }
   } catch {
     /* কিছু ব্রাউজারে getNotifications নেই */
   }

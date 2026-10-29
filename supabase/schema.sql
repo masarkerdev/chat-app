@@ -374,3 +374,112 @@ begin
     alter publication supabase_realtime add table public.message_reactions;
   end if;
 end $$;
+
+-- =====================================================================
+-- ১০. মেসেজ এডিট, রিঅ্যাকশনের নোটিফিকেশন, প্রজেক্ট সজাগ রাখা
+-- =====================================================================
+
+-- ---- মেসেজ এডিট ----
+alter table public.messages add column if not exists edited_at timestamptz;
+
+-- লেখা বদলালে নিজে থেকেই "সম্পাদিত" সময় বসে
+create or replace function public.touch_edited()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.content is distinct from old.content then
+    new.edited_at := now();
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists messages_touch_edited on public.messages;
+create trigger messages_touch_edited
+  before update on public.messages
+  for each row execute function public.touch_edited();
+
+-- শুধু লেখা (content) বদলানো যাবে — প্রেরক, সময়, ছবি, seen কিছুই নয়
+revoke update on public.messages from anon, authenticated;
+grant update (content) on public.messages to authenticated;
+
+drop policy if exists "edit own text messages" on public.messages;
+create policy "edit own text messages" on public.messages
+  for update to authenticated
+  using (sender_id = auth.uid() and image_path is null)
+  with check (sender_id = auth.uid() and image_path is null);
+
+-- ---- রিঅ্যাকশনের নোটিফিকেশন ----
+-- একই মেসেজে একই ইমোজির জন্য একবারই নোটিফিকেশন যায় (বারবার চাপলেও না)
+create table if not exists public.reaction_push_log (
+  message_id uuid not null references public.messages(id) on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  emoji      text not null,
+  sent_at    timestamptz not null default now(),
+  primary key (message_id, user_id, emoji)
+);
+alter table public.reaction_push_log enable row level security;
+
+-- অপর জনের মেসেজে রিঅ্যাকশন দিলে /api/notify এটি ডাকে
+create or replace function public.claim_reaction_push(p_message_id uuid)
+returns table (
+  sub_endpoint text,
+  sub_p256dh   text,
+  sub_auth     text,
+  sender_name  text,
+  emoji        text,
+  body_text    text,
+  has_image    boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  v_emoji text;
+begin
+  select r.emoji into v_emoji
+    from public.message_reactions r
+    join public.messages m on m.id = r.message_id
+   where r.message_id = p_message_id
+     and r.user_id = auth.uid()
+     and m.sender_id <> auth.uid();
+
+  if v_emoji is null then
+    return;
+  end if;
+
+  insert into public.reaction_push_log (message_id, user_id, emoji)
+  values (p_message_id, auth.uid(), v_emoji)
+  on conflict do nothing;
+
+  if not found then
+    return;
+  end if;
+
+  return query
+    select s.endpoint, s.p256dh, s.auth, p.display_name, v_emoji, m.content, (m.image_path is not null)
+      from public.messages m
+      join public.profiles p on p.id = auth.uid()
+      join public.push_subscriptions s on s.user_id = m.sender_id
+     where m.id = p_message_id;
+end;
+$$;
+
+revoke execute on function public.claim_reaction_push(uuid) from public, anon;
+grant  execute on function public.claim_reaction_push(uuid) to authenticated;
+
+-- ---- প্রজেক্ট সজাগ রাখা ----
+-- Vercel প্রতিদিন /api/keepalive থেকে এটি ডাকে, যাতে ফ্রি প্রজেক্ট ৭ দিনে ঘুমিয়ে না পড়ে।
+-- কোনো তথ্য দেয় না, শুধু সময়।
+create or replace function public.ping()
+returns timestamptz
+language sql
+stable
+as $$
+  select now();
+$$;
+
+grant execute on function public.ping() to anon, authenticated;

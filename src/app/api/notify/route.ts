@@ -23,6 +23,8 @@ type Target = {
   sender_name: string;
   body_text: string | null;
   has_image: boolean;
+  /** শুধু রিঅ্যাকশনের ক্ষেত্রে */
+  emoji?: string;
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -60,8 +62,9 @@ export async function POST(req: Request) {
   if (!token) return json(401, { error: 'missing token' });
 
   let messageId: unknown;
+  let kind: unknown;
   try {
-    ({ messageId } = await req.json());
+    ({ messageId, kind } = await req.json());
   } catch {
     return json(400, { error: 'bad json' });
   }
@@ -74,7 +77,11 @@ export async function POST(req: Request) {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 
-  const { data, error } = await sb.rpc('claim_push', { p_message_id: messageId });
+  // kind = 'reaction' হলে: অপর জনের মেসেজে দেওয়া রিঅ্যাকশনের খবর
+  const isReaction = kind === 'reaction';
+  const { data, error } = await sb.rpc(isReaction ? 'claim_reaction_push' : 'claim_push', {
+    p_message_id: messageId,
+  });
   if (error) return json(403, { error: error.message });
 
   const targets = (data ?? []) as Target[];
@@ -83,12 +90,20 @@ export async function POST(req: Request) {
 
   await Promise.all(
     targets.map(async (t) => {
-      const payload = JSON.stringify({
-        title: t.sender_name,
-        body: previewText(t),
-        url: '/chat',
-        messageId,
-      });
+      const payload = JSON.stringify(
+        isReaction
+          ? {
+              type: 'reaction',
+              title: t.sender_name,
+              body:
+                process.env.NOTIFY_PREVIEW === 'false'
+                  ? `আপনার মেসেজে ${t.emoji} দিয়েছেন`
+                  : `${t.emoji} দিয়েছেন: "${previewText(t)}"`,
+              url: '/chat',
+              messageId,
+            }
+          : { type: 'message', title: t.sender_name, body: previewText(t), url: '/chat', messageId }
+      );
       try {
         await webpush.sendNotification(
           { endpoint: t.sub_endpoint, keys: { p256dh: t.sub_p256dh, auth: t.sub_auth } },

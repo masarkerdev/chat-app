@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { CloseIcon, ImageIcon, ReplyIcon, SendIcon } from './Icons';
+import { CloseIcon, ImageIcon, PenIcon, ReplyIcon, SendIcon } from './Icons';
 
 export type ReplyDraft = {
   /** যার মেসেজের উত্তর দেওয়া হচ্ছে */
@@ -14,6 +14,9 @@ type Props = {
   disabled?: boolean;
   reply?: ReplyDraft | null;
   onCancelReply?: () => void;
+  /** এডিট মোড: আগের লেখা */
+  editing?: { text: string } | null;
+  onCancelEdit?: () => void;
   onSend: (text: string) => void;
   onImage: (file: File) => Promise<string | null>;
   onTyping: (typing: boolean) => void;
@@ -21,7 +24,7 @@ type Props = {
 
 const MAX_LEN = 4000;
 
-export function Composer({ disabled, reply, onCancelReply, onSend, onImage, onTyping }: Props) {
+export function Composer({ disabled, reply, onCancelReply, editing, onCancelEdit, onSend, onImage, onTyping }: Props) {
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -38,6 +41,24 @@ export function Composer({ disabled, reply, onCancelReply, onSend, onImage, onTy
   useEffect(() => {
     if (reply) taRef.current?.focus();
   }, [reply]);
+
+  // এডিট শুরু হলে আগের লেখা বসে, কার্সর শেষে যায়; বাতিল হলে খালি হয়
+  const editKey = editing?.text;
+  useEffect(() => {
+    if (editKey === undefined) return;
+    setText(editKey);
+    requestAnimationFrame(() => {
+      const ta = taRef.current;
+      if (!ta) return;
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    });
+  }, [editKey]);
+
+  const cancelEdit = () => {
+    setText('');
+    onCancelEdit?.();
+  };
 
   // টেক্সট অনুযায়ী উচ্চতা বাড়ে (সর্বোচ্চ ~৬ লাইন)
   useEffect(() => {
@@ -102,7 +123,20 @@ export function Composer({ disabled, reply, onCancelReply, onSend, onImage, onTy
     >
       {error && <div className="composer-error" role="alert">{error}</div>}
 
-      {reply && (
+      {editing && (
+        <div className="reply-bar quote-me">
+          <PenIcon size={18} className="reply-bar-icon" />
+          <div className="reply-bar-body">
+            <span className="quote-name">মেসেজ এডিট করছেন</span>
+            <span className="quote-text">{editing.text}</span>
+          </div>
+          <button type="button" className="icon-btn" aria-label="এডিট বাতিল" onClick={cancelEdit}>
+            <CloseIcon size={18} />
+          </button>
+        </div>
+      )}
+
+      {reply && !editing && (
         <div className={`reply-bar ${reply.byMe ? 'quote-me' : 'quote-them'}`}>
           <ReplyIcon size={18} className="reply-bar-icon" />
           <div className="reply-bar-body">
@@ -119,7 +153,7 @@ export function Composer({ disabled, reply, onCancelReply, onSend, onImage, onTy
         type="button"
         className="icon-btn composer-attach"
         aria-label="ছবি পাঠান"
-        disabled={disabled}
+        disabled={disabled || !!editing}
         onClick={() => fileRef.current?.click()}
       >
         <ImageIcon />
@@ -145,6 +179,10 @@ export function Composer({ disabled, reply, onCancelReply, onSend, onImage, onTy
           onChange={(e) => onChange(e.target.value)}
           onBlur={stopTyping}
           onKeyDown={(e) => {
+            if (e.key === 'Escape' && editing) {
+              cancelEdit();
+              return;
+            }
             if (e.key === 'Escape' && reply) {
               onCancelReply?.();
               return;

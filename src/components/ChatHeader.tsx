@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Avatar } from './Avatar';
-import { BellIcon, BellOffIcon, KeyIcon, LogoutIcon, MoreIcon, PaletteIcon, PenIcon } from './Icons';
+import { BellIcon, BellOffIcon, KeyIcon, LockIcon, LogoutIcon, MoreIcon, PaletteIcon, PenIcon } from './Icons';
+import { AppLockDialog } from './AppLockDialog';
 import { ThemeDialog } from './ThemeDialog';
 import { PasswordDialog } from './PasswordDialog';
 import { formatLastSeen } from '@/lib/format';
@@ -24,6 +25,7 @@ export function ChatHeader({ me, partner, online, typing, connected, push, onRen
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
+  const [lockOpen, setLockOpen] = useState(false);
   const [, forceTick] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -128,6 +130,15 @@ export function ChatHeader({ me, partner, online, typing, connected, push, onRen
             >
               <KeyIcon /> পাসওয়ার্ড পরিবর্তন
             </button>
+            <button
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                setLockOpen(true);
+              }}
+            >
+              <LockIcon /> অ্যাপ লক (PIN)
+            </button>
             {(push.supported || push.iosTab) && (
               <button role="menuitem" onClick={togglePush} disabled={push.busy}>
                 {push.active ? (
@@ -149,6 +160,7 @@ export function ChatHeader({ me, partner, online, typing, connected, push, onRen
       </div>
 
       {pwOpen && <PasswordDialog onClose={() => setPwOpen(false)} />}
+      {lockOpen && <AppLockDialog onClose={() => setLockOpen(false)} />}
       {themeOpen && (
         <ThemeDialog partnerName={partner?.display_name ?? 'অপর জন'} onClose={() => setThemeOpen(false)} />
       )}
