@@ -62,3 +62,31 @@ export function snippet(m: { content: string | null; image_path: string | null }
   if (t) return t.length > max ? `${t.slice(0, max - 1)}…` : t;
   return m.image_path ? '📷 ছবি' : '';
 }
+
+const bnNum = (n: number, pad = 0) =>
+  n.toLocaleString('bn-BD', { useGrouping: false, minimumIntegerDigits: pad || undefined });
+
+/** দিনের কোন ভাগ — ভোর / সকাল / দুপুর / বিকেল / সন্ধ্যা / রাত */
+function dayPart(h: number) {
+  if (h >= 4 && h < 6) return 'ভোর';
+  if (h >= 6 && h < 12) return 'সকাল';
+  if (h >= 12 && h < 15) return 'দুপুর';
+  if (h >= 15 && h < 18) return 'বিকেল';
+  if (h >= 18 && h < 20) return 'সন্ধ্যা';
+  return 'রাত';
+}
+
+/** ছোট তারিখ ও সময়: "২৯ অক্টোবর, সকাল ৭:১১" — অন্য বছরের হলে সাল যোগ হয় */
+export function formatFull(iso: string) {
+  const d = new Date(iso);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  const date = d.toLocaleDateString(LOCALE, {
+    day: 'numeric',
+    month: 'long',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  });
+  const h = d.getHours();
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  // সময়ের অংশ ("সকাল ৭:১১") যেন দুই লাইনে ভেঙে না যায়
+  return `${date}, ${dayPart(h)}\u00a0${bnNum(h12)}:${bnNum(d.getMinutes(), 2)}`;
+}

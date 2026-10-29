@@ -2,7 +2,7 @@
 
 import { memo, useLayoutEffect, useRef, useState } from 'react';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
-import { formatTime, isEmojiOnly, snippet, splitLinks } from '@/lib/format';
+import { formatFull, formatTime, isEmojiOnly, snippet, splitLinks } from '@/lib/format';
 import { QUICK_REACTIONS, type Message } from '@/lib/types';
 import { AlertIcon, ArrowDownIcon, CopyIcon, PenIcon, ReplyIcon, RetryIcon, TrashIcon } from './Icons';
 
@@ -83,6 +83,10 @@ function MessageBubbleBase({
   const bubbleRef = useRef<HTMLDivElement>(null);
   const hintRef = useRef<HTMLSpanElement>(null);
   const [menuUp, setMenuUp] = useState(false);
+  /** একবার ট্যাপ করলে পুরো তারিখ-সময় দেখায় */
+  const [showInfo, setShowInfo] = useState(false);
+  const longPressed = useRef(false);
+  const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sent = !msg.pending && !msg.failed;
   const myReaction = msg.reactions?.find((r) => r.user_id === meId)?.emoji ?? null;
@@ -117,8 +121,10 @@ function MessageBubbleBase({
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     start.current = { x: e.clientX, y: e.clientY };
     moved.current = false;
+    longPressed.current = false;
     pressTimer.current = setTimeout(() => {
       if (!moved.current) {
+        longPressed.current = true;
         navigator.vibrate?.(15);
         onActivate(msg.id);
       }
@@ -224,7 +230,21 @@ function MessageBubbleBase({
           onPointerUp={endPointer}
           onPointerCancel={endPointer}
           onPointerLeave={() => !swiping.current && pressTimer.current && clearTimeout(pressTimer.current)}
+          onClick={(e) => {
+            // একবার ট্যাপ = তারিখ দেখাও/লুকাও (লিংক, বোতাম, লং-প্রেস বা টানলে নয়)
+            if ((e.target as HTMLElement).closest('a, button, .bubble-menu')) return;
+            if (moved.current || longPressed.current) return;
+            if (tapTimer.current) return; // দ্বিতীয় ট্যাপ — ডাবল-ট্যাপ সামলাবে
+            tapTimer.current = setTimeout(() => {
+              tapTimer.current = null;
+              setShowInfo((v) => !v);
+            }, 260);
+          }}
           onDoubleClick={(e) => {
+            if (tapTimer.current) {
+              clearTimeout(tapTimer.current);
+              tapTimer.current = null;
+            }
             // ডাবল-ট্যাপ = ❤️
             if (!sent || msg.image_path || (e.target as HTMLElement).closest('a, button')) return;
             window.getSelection()?.removeAllRanges();
@@ -353,6 +373,14 @@ function MessageBubbleBase({
             </div>
           )}
         </div>
+
+        {showInfo && (
+          <div className="msg-info" role="note">
+            <span>পাঠানো: {formatFull(msg.created_at)}</span>
+            {mine && msg.seen_at && <span>দেখেছে: {formatFull(msg.seen_at)}</span>}
+            {msg.edited_at && <span>সম্পাদিত: {formatFull(msg.edited_at)}</span>}
+          </div>
+        )}
 
         {grouped.length > 0 && (
           <div className="reactions">

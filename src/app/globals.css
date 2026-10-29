@@ -1835,3 +1835,27 @@ button {
     gap: 10px 18px;
   }
 }
+
+/* ট্যাপ করলে মেসেজের পুরো তারিখ-সময় */
+.msg-info {
+  order: 1; /* রিঅ্যাকশনের নিচে */
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: min(80%, 520px);
+  margin: 5px 8px 2px;
+  padding: 5px 10px;
+  border: 1.5px dashed var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  animation: settle 0.16s ease-out;
+}
+.row-mine .msg-info {
+  text-align: right;
+}
+.bubble {
+  cursor: default;
+}
