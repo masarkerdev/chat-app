@@ -129,6 +129,26 @@ export const DevicesIcon = ({ size = 18, className }: P) => (
   </svg>
 );
 
+export const SearchIcon = ({ size = 22, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m20 20-4.2-4.2" />
+  </svg>
+);
+
+export const PinIcon = ({ size = 18, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M9 3h6l-1 6 3.5 3.5V14h-11v-1.5L10 9 9 3Z" />
+    <path d="M12 14v7" />
+  </svg>
+);
+
+export const HeartIcon = ({ size = 22, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20Z" />
+  </svg>
+);
+
 export const PenIcon = ({ size = 18, className }: P) => (
   <svg {...base(size)} className={className}>
     <path d="M4 20h4L19 9l-4-4L4 16v4Z" />

@@ -4,7 +4,7 @@ import { memo, useLayoutEffect, useRef, useState } from 'react';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { formatFull, formatTime, isEmojiOnly, snippet, splitLinks } from '@/lib/format';
 import { QUICK_REACTIONS, type Message } from '@/lib/types';
-import { AlertIcon, ArrowDownIcon, CopyIcon, PenIcon, ReplyIcon, RetryIcon, TrashIcon } from './Icons';
+import { AlertIcon, ArrowDownIcon, CopyIcon, PenIcon, PinIcon, ReplyIcon, RetryIcon, TrashIcon } from './Icons';
 
 export type Quote = {
   /** মূল মেসেজ; null = পাওয়া যায়নি / মুছে গেছে */
@@ -21,6 +21,7 @@ type Props = {
   firstInGroup: boolean;
   active: boolean;
   highlighted: boolean;
+  pinned: boolean;
   quote: Quote | null;
   onActivate: (id: string | null) => void;
   onOpenImage: (url: string) => void;
@@ -28,6 +29,7 @@ type Props = {
   onRetry: (id: string) => void;
   onReply: (msg: Message) => void;
   onEdit: (msg: Message) => void;
+  onTogglePin: (msg: Message) => void;
   onReact: (id: string, emoji: string) => void;
   onJumpTo: (id: string) => void;
 };
@@ -65,6 +67,7 @@ function MessageBubbleBase({
   firstInGroup,
   active,
   highlighted,
+  pinned,
   quote,
   onActivate,
   onOpenImage,
@@ -72,6 +75,7 @@ function MessageBubbleBase({
   onRetry,
   onReply,
   onEdit,
+  onTogglePin,
   onReact,
   onJumpTo,
 }: Props) {
@@ -287,6 +291,7 @@ function MessageBubbleBase({
           )}
 
           <span className="meta">
+            {pinned && <PinIcon size={12} className="meta-pin" />}
             {msg.edited_at && <span className="edited">সম্পাদিত</span>}
             <time dateTime={msg.created_at}>{formatTime(msg.created_at)}</time>
             {mine && <Status msg={msg} />}
@@ -336,6 +341,17 @@ function MessageBubbleBase({
                   }}
                 >
                   <ReplyIcon /> রিপ্লাই
+                </button>
+              )}
+              {sent && (
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    close();
+                    onTogglePin(msg);
+                  }}
+                >
+                  <PinIcon /> {pinned ? 'পিন সরান' : 'পিন করুন'}
                 </button>
               )}
               {mine && sent && !msg.image_path && (

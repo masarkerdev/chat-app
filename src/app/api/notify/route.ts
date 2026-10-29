@@ -77,11 +77,12 @@ export async function POST(req: Request) {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 
-  // kind = 'reaction' হলে: অপর জনের মেসেজে দেওয়া রিঅ্যাকশনের খবর
+  // kind = 'reaction': অপর জনের মেসেজে দেওয়া রিঅ্যাকশন; 'nudge': "মনে পড়ছে"
   const isReaction = kind === 'reaction';
-  const { data, error } = await sb.rpc(isReaction ? 'claim_reaction_push' : 'claim_push', {
-    p_message_id: messageId,
-  });
+  const isNudge = kind === 'nudge';
+  const { data, error } = isNudge
+    ? await sb.rpc('claim_nudge_push', { p_nudge_id: messageId })
+    : await sb.rpc(isReaction ? 'claim_reaction_push' : 'claim_push', { p_message_id: messageId });
   if (error) return json(403, { error: error.message });
 
   const targets = (data ?? []) as Target[];
@@ -91,7 +92,9 @@ export async function POST(req: Request) {
   await Promise.all(
     targets.map(async (t) => {
       const payload = JSON.stringify(
-        isReaction
+        isNudge
+          ? { type: 'nudge', title: t.sender_name, body: 'আপনাকে মনে করছে 💞', url: '/chat', messageId }
+          : isReaction
           ? {
               type: 'reaction',
               title: t.sender_name,

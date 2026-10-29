@@ -16,10 +16,14 @@ type Props = {
   onLoadOlder: () => void;
   partnerName: string;
   quotes: Record<string, Message | null>;
+  pinnedIds: Set<string>;
+  /** বাইরে থেকে (খোঁজা/পিন) কোনো মেসেজে যাওয়ার অনুরোধ */
+  jumpRequest: { id: string; key: number } | null;
   onDelete: (id: string) => void;
   onRetry: (id: string) => void;
   onReply: (msg: Message) => void;
   onEdit: (msg: Message) => void;
+  onTogglePin: (msg: Message) => void;
   onReact: (id: string, emoji: string) => void;
 };
 
@@ -33,11 +37,14 @@ export function MessageList({
   typing,
   partnerName,
   quotes,
+  pinnedIds,
+  jumpRequest,
   onLoadOlder,
   onDelete,
   onRetry,
   onReply,
   onEdit,
+  onTogglePin,
   onReact,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -141,6 +148,16 @@ export function MessageList({
     return () => io.disconnect();
   }, [hasMore, onLoadOlder]);
 
+  // খোঁজা/পিন থেকে আসা অনুরোধ: মেসেজটা তালিকায় এলেই সেখানে যাই (একবার)
+  const handledJump = useRef(0);
+  useEffect(() => {
+    if (!jumpRequest || handledJump.current === jumpRequest.key) return;
+    if (!messages.some((m) => m.id === jumpRequest.id)) return; // এখনো লোড হচ্ছে
+    handledJump.current = jumpRequest.key;
+    atBottom.current = false;
+    requestAnimationFrame(() => jumpTo(jumpRequest.id));
+  }, [jumpRequest, messages, jumpTo]);
+
   const lastTop = useRef(0);
   const lastUserInput = useRef(0);
   const markUserInput = () => {
@@ -211,6 +228,7 @@ export function MessageList({
                 firstInGroup={firstInGroup}
                 active={activeId === m.id}
                 highlighted={highlightId === m.id}
+                pinned={pinnedIds.has(m.id)}
                 quote={quoteFor(m)}
                 onActivate={setActiveId}
                 onOpenImage={setViewer}
@@ -218,6 +236,7 @@ export function MessageList({
                 onRetry={onRetry}
                 onReply={onReply}
                 onEdit={onEdit}
+                onTogglePin={onTogglePin}
                 onReact={onReact}
                 onJumpTo={jumpTo}
               />

@@ -5,7 +5,7 @@
  * - নোটিফিকেশনে ট্যাপ করলে চ্যাট খুলে দেয়
  * মেসেজ বা Supabase রিকোয়েস্ট কখনো ক্যাশ করা হয় না।
  */
-const CACHE = 'dujone-static-v5';
+const CACHE = 'dujone-static-v6';
 const TAG = 'dujone-message';
 const IS_DEV = ['localhost', '127.0.0.1'].includes(self.location.hostname);
 
@@ -82,11 +82,11 @@ self.addEventListener('push', (event) => {
       const sender = data.title || 'Dujone';
       const body = data.body || 'নতুন মেসেজ';
 
-      // রিঅ্যাকশন: আলাদা নোটিফিকেশন, মেসেজের সাথে জমা হয় না
-      if (data.type === 'reaction') {
+      // রিঅ্যাকশন ও "মনে পড়ছে": আলাদা নোটিফিকেশন, মেসেজের সাথে জমা হয় না
+      if (data.type === 'reaction' || data.type === 'nudge') {
         await self.registration.showNotification(sender, {
           body,
-          tag: 'dujone-reaction',
+          tag: 'dujone-' + data.type,
           renotify: true,
           icon: '/icons/icon-192.png',
           badge: '/icons/badge-96.png',

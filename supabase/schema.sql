@@ -580,3 +580,116 @@ revoke execute on function public.revoke_other_sessions(text)  from public, anon
 grant  execute on function public.list_my_sessions()           to authenticated;
 grant  execute on function public.revoke_session(uuid)         to authenticated;
 grant  execute on function public.revoke_other_sessions(text)  to authenticated;
+
+-- =====================================================================
+-- ১২. পিন করা মেসেজ ও "মনে পড়ছে"
+-- =====================================================================
+
+-- ---- পিন করা মেসেজ (দুজনেরই দেখা যায়, যে কেউ পিন/আনপিন করতে পারে) ----
+create table if not exists public.pinned_messages (
+  message_id uuid primary key references public.messages(id) on delete cascade,
+  pinned_by  uuid not null references public.profiles(id) on delete cascade,
+  pinned_at  timestamptz not null default now()
+);
+alter table public.pinned_messages replica identity full;
+alter table public.pinned_messages enable row level security;
+
+drop policy if exists "members read pins"   on public.pinned_messages;
+drop policy if exists "members add pins"    on public.pinned_messages;
+drop policy if exists "members remove pins" on public.pinned_messages;
+
+create policy "members read pins" on public.pinned_messages
+  for select to authenticated using (public.is_member());
+create policy "members add pins" on public.pinned_messages
+  for insert to authenticated with check (public.is_member() and pinned_by = auth.uid());
+create policy "members remove pins" on public.pinned_messages
+  for delete to authenticated using (public.is_member());
+
+-- ---- "মনে পড়ছে" ----
+create table if not exists public.nudges (
+  id         uuid primary key default gen_random_uuid(),
+  sender_id  uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  pushed_at  timestamptz
+);
+create index if not exists nudges_sender_time_idx on public.nudges (sender_id, created_at desc);
+alter table public.nudges enable row level security;
+
+-- বারবার চাপা ঠেকাতে: একজন ১৫ সেকেন্ডে একবার
+create or replace function public.can_nudge()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select not exists (
+    select 1 from public.nudges
+     where sender_id = auth.uid() and created_at > now() - interval '15 seconds'
+  );
+$$;
+
+drop policy if exists "members read nudges" on public.nudges;
+drop policy if exists "members send nudges" on public.nudges;
+
+create policy "members read nudges" on public.nudges
+  for select to authenticated using (public.is_member());
+create policy "members send nudges" on public.nudges
+  for insert to authenticated
+  with check (public.is_member() and sender_id = auth.uid() and public.can_nudge());
+
+-- "মনে পড়ছে" পাঠানোর পর /api/notify এটি ডাকে — অপর জনের ডিভাইস তালিকা দেয় (একবারই)
+create or replace function public.claim_nudge_push(p_nudge_id uuid)
+returns table (
+  sub_endpoint text,
+  sub_p256dh   text,
+  sub_auth     text,
+  sender_name  text,
+  body_text    text,
+  has_image    boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.nudges
+     set pushed_at = now()
+   where id = p_nudge_id
+     and sender_id = auth.uid()
+     and pushed_at is null
+     and created_at > now() - interval '2 minutes';
+
+  if not found then
+    return;
+  end if;
+
+  -- পুরোনো "মনে পড়ছে" জমে না থাকুক (৬০ দিনের বেশি পুরোনো মুছে যায়)
+  delete from public.nudges where created_at < now() - interval '60 days';
+
+  return query
+    select s.endpoint, s.p256dh, s.auth, p.display_name, null::text, false
+      from public.profiles p
+      join public.push_subscriptions s on s.user_id <> auth.uid()
+     where p.id = auth.uid();
+end;
+$$;
+
+revoke execute on function public.claim_nudge_push(uuid) from public, anon;
+grant  execute on function public.claim_nudge_push(uuid) to authenticated;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'pinned_messages'
+  ) then
+    alter publication supabase_realtime add table public.pinned_messages;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'nudges'
+  ) then
+    alter publication supabase_realtime add table public.nudges;
+  end if;
+end $$;

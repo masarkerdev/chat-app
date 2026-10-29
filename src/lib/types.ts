@@ -36,3 +36,12 @@ export type Message = {
 
 /** রিঅ্যাকশনের দ্রুত তালিকা */
 export const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '🙏', '👍'];
+
+/** পিন করা মেসেজ */
+export type Pin = {
+  message_id: string;
+  pinned_by: string;
+  pinned_at: string;
+  /** পিন লোডের সময়ের মেসেজ (তালিকায় না থাকলেও দেখানোর জন্য) */
+  message: Message | null;
+};

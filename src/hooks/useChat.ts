@@ -8,7 +8,7 @@ import { compressImage, extFor } from '@/lib/image';
 import { clearNotifications, disablePush, isPushActive, notifyPartner, syncPush, unsubscribeLocal } from '@/lib/push';
 import { sessionIdFromToken } from '@/lib/devices';
 import { clearLock, isLocked } from '@/lib/applock';
-import type { Message, Profile, Reaction } from '@/lib/types';
+import type { Message, Pin, Profile, Reaction } from '@/lib/types';
 
 const ROOM = 'room:dujone';
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -89,6 +89,10 @@ export function useChat() {
   const [connected, setConnected] = useState(true);
   /** তালিকায় নেই এমন পুরোনো মেসেজ, যার রিপ্লাই দেখানো হচ্ছে */
   const [quotes, setQuotes] = useState<Record<string, Message | null>>({});
+  /** পিন করা মেসেজ (নতুনটা আগে) */
+  const [pins, setPins] = useState<Pin[]>([]);
+  /** অপর জন "মনে পড়ছে" পাঠালে */
+  const [incomingNudge, setIncomingNudge] = useState<{ id: string; at: number } | null>(null);
   /** মেসেজ লোড করতে সমস্যা হলে উপরে দেখানোর বার্তা */
   const [loadError, setLoadError] = useState('');
 
@@ -156,6 +160,18 @@ export function useChat() {
       /* কিছু ব্রাউজারে নোটিফিকেশন সাপোর্ট নেই */
     }
   }, [updateTitle]);
+
+  const loadPins = useCallback(async () => {
+    const { data, error } = await getSupabase()
+      .from('pinned_messages')
+      .select('message_id, pinned_by, pinned_at, message:messages(id, sender_id, content, image_path, created_at, seen_at)')
+      .order('pinned_at', { ascending: false });
+    if (error) {
+      console.warn('পিন লোড করা যায়নি', error);
+      return;
+    }
+    setPins((data ?? []) as unknown as Pin[]);
+  }, []);
 
   /** অন্য ডিভাইস থেকে লগআউট করা হলে: এই ডিভাইস পরিষ্কার করে লগইন পেইজে */
   const forceLogout = useCallback(async () => {
@@ -257,6 +273,7 @@ export function useChat() {
       await loadLatest(true);
       if (cancelled) return;
       setStatus('ready');
+      loadPins();
       clearNotifications();
       syncPush();
 
@@ -289,6 +306,16 @@ export function useChat() {
             const n = p.new as Reaction & { message_id: string };
             setMessages((l) => withReaction(l, n.message_id, n.user_id, n.emoji));
           }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'pinned_messages' }, (p) => {
+          if (p.eventType === 'DELETE') {
+            const id = (p.old as { message_id?: string }).message_id;
+            if (id) setPins((l) => l.filter((x) => x.message_id !== id));
+          } else loadPins();
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'nudges' }, (p) => {
+          const n = p.new as { id: string; sender_id: string };
+          if (n.sender_id !== uid) setIncomingNudge({ id: n.id, at: Date.now() });
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (p) => {
           const pr = p.new as Profile;
@@ -372,7 +399,7 @@ export function useChat() {
       if (room) sb.removeChannel(room);
       roomRef.current = null;
     };
-  }, [router, loadLatest, markSeen, notify, touchLastSeen, updateTitle, validateSession, forceLogout]);
+  }, [router, loadLatest, loadPins, markSeen, notify, touchLastSeen, updateTitle, validateSession, forceLogout]);
 
   // নতুন মেসেজ এলে (এবং পেইজ দেখা গেলে) seen মার্ক
   useEffect(() => {
@@ -557,6 +584,78 @@ export function useChat() {
       });
   }, [messages, quotes, status]);
 
+  // ---------------------------------------------------------------- পিন
+  const togglePin = useCallback(
+    async (msg: Message) => {
+      const uid = meRef.current?.id;
+      if (!uid) return { ok: false, pinned: false };
+      const sb = getSupabase();
+      const isPinned = pins.some((p) => p.message_id === msg.id);
+      if (isPinned) {
+        setPins((l) => l.filter((p) => p.message_id !== msg.id));
+        const { error } = await sb.from('pinned_messages').delete().eq('message_id', msg.id);
+        if (error) loadPins();
+        return { ok: !error, pinned: false };
+      }
+      setPins((l) => [{ message_id: msg.id, pinned_by: uid, pinned_at: new Date().toISOString(), message: msg }, ...l]);
+      const { error } = await sb.from('pinned_messages').insert({ message_id: msg.id, pinned_by: uid });
+      // ২৩৫০৫ = অপর জন একই সময়ে পিন করেছে — তাও ঠিক আছে
+      if (error && error.code !== '23505') {
+        console.error('পিন ব্যর্থ', error);
+        loadPins();
+        return { ok: false, pinned: false };
+      }
+      return { ok: true, pinned: true };
+    },
+    [pins, loadPins]
+  );
+
+  // ---------------------------------------------------------------- "মনে পড়ছে"
+  /** 'ok' = পাঠানো হয়েছে, 'wait' = একটু আগেই পাঠানো হয়েছে, 'error' = সমস্যা */
+  const sendNudge = useCallback(async (): Promise<'ok' | 'wait' | 'error'> => {
+    const { data, error } = await getSupabase().from('nudges').insert({}).select('id').single();
+    if (error) {
+      if (error.code === '42501' || /row-level security/i.test(error.message)) return 'wait';
+      console.error('"মনে পড়ছে" পাঠানো যায়নি', error);
+      return 'error';
+    }
+    notifyPartner((data as { id: string }).id, 'nudge');
+    return 'ok';
+  }, []);
+
+  // ---------------------------------------------------------------- খোঁজা
+  /** পুরো চ্যাটে (সার্ভারে) লেখা খোঁজে — নতুনগুলো আগে, সর্বোচ্চ ৬০টি */
+  const searchMessages = useCallback(async (q: string): Promise<Message[] | null> => {
+    const term = q.trim();
+    if (term.length < 2) return [];
+    const pattern = `%${term.replace(/[\\%_]/g, (c) => '\\' + c)}%`;
+    const { data, error } = await getSupabase()
+      .from('messages')
+      .select('id, sender_id, content, image_path, created_at, seen_at, edited_at')
+      .ilike('content', pattern)
+      .order('created_at', { ascending: false })
+      .limit(60);
+    if (error) {
+      console.error('খোঁজা যায়নি', error);
+      return null;
+    }
+    return (data ?? []) as Message[];
+  }, []);
+
+  /** কোনো পুরোনো মেসেজে যেতে হলে, সেটা পর্যন্ত মেসেজগুলো তালিকায় এনে রাখে */
+  const ensureLoaded = useCallback(async (m: { id: string; created_at: string }) => {
+    if (messagesRef.current.some((x) => x.id === m.id)) return true;
+    const { data, error } = await getSupabase()
+      .from('messages')
+      .select(MSG_COLS)
+      .gte('created_at', m.created_at)
+      .order('created_at', { ascending: false })
+      .limit(2000);
+    if (error || !data) return false;
+    setMessages((l) => merge(l, data as Message[]));
+    return true;
+  }, []);
+
   const loadOlder = useCallback(async () => {
     if (loadingOlderRef.current || !hasMore) return;
     const oldest = messagesRef.current.find((m) => !m.pending && !m.failed);
@@ -639,6 +738,12 @@ export function useChat() {
     deleteMessage,
     react,
     editMessage,
+    pins,
+    togglePin,
+    sendNudge,
+    incomingNudge,
+    searchMessages,
+    ensureLoaded,
     quotes,
     loadError,
     loadOlder,

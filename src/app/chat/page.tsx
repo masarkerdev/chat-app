@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChat } from '@/hooks/useChat';
 import { usePush } from '@/hooks/usePush';
 import { PushBanner } from '@/components/PushBanner';
@@ -9,6 +9,9 @@ import { MessageList } from '@/components/MessageList';
 import { Composer } from '@/components/Composer';
 import { getSupabase } from '@/lib/supabase';
 import { AppLockGate } from '@/components/AppLock';
+import { SearchPanel } from '@/components/SearchPanel';
+import { PinBar } from '@/components/PinBar';
+import { NudgeLayer } from '@/components/NudgeLayer';
 import { snippet } from '@/lib/format';
 import type { Message } from '@/lib/types';
 
@@ -36,6 +39,42 @@ function ChatScreen() {
     setReplyTo(null);
     setEditing(m);
   }, []);
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
+  const [jumpRequest, setJumpRequest] = useState<{ id: string; key: number } | null>(null);
+  const [nudgeTrigger, setNudgeTrigger] = useState<number | null>(null);
+  const [nudgeText, setNudgeText] = useState('');
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = useCallback((text: string) => {
+    setToast(text);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 2600);
+  }, []);
+
+  const { ensureLoaded, incomingNudge, partner } = chat;
+
+  /** খোঁজা বা পিন থেকে কোনো মেসেজে যাওয়া — পুরোনো হলে আগে লোড করে নেয় */
+  const jumpToMessage = useCallback(
+    async (m: { id: string; created_at: string }) => {
+      const ok = await ensureLoaded(m);
+      if (!ok) return showToast('মেসেজটি লোড করা যায়নি');
+      setJumpRequest({ id: m.id, key: Date.now() });
+    },
+    [ensureLoaded, showToast]
+  );
+
+  // অপর জন "মনে পড়ছে" পাঠালে হৃদয় ভাসে
+  useEffect(() => {
+    if (!incomingNudge) return;
+    setNudgeText(`${partner?.display_name ?? 'অপর জন'} আপনাকে মনে করছে 💞`);
+    setNudgeTrigger(incomingNudge.at);
+  }, [incomingNudge, partner]);
+
+  const pinnedIds = useMemo(() => new Set(chat.pins.map((p) => p.message_id)), [chat.pins]);
+  const byId = useMemo(() => new Map(chat.messages.map((m) => [m.id, m])), [chat.messages]);
 
   if (chat.status === 'loading') {
     return (
@@ -99,9 +138,19 @@ function ChatScreen() {
         onRename={chat.updateName}
         onLogout={chat.logout}
         onKickSessions={chat.kickSessions}
+        onOpenSearch={() => setSearchOpen(true)}
+        onNudge={async () => {
+          const r = await chat.sendNudge();
+          if (r === 'ok') {
+            setNudgeText(`${partnerName}-কে জানানো হলো, আপনার মনে পড়ছে 💞`);
+            setNudgeTrigger(Date.now());
+          } else if (r === 'wait') showToast('একটু আগেই পাঠিয়েছেন, কয়েক সেকেন্ড পর আবার চাপুন');
+          else showToast('পাঠানো যায়নি, ইন্টারনেট দেখে আবার চেষ্টা করুন');
+        }}
       />
 
       <PushBanner push={push} />
+      <PinBar pins={chat.pins} byId={byId} onJump={jumpToMessage} />
 
       {!chat.connected && <div className="conn-banner">সংযোগ বিচ্ছিন্ন। আবার যুক্ত হওয়ার চেষ্টা চলছে…</div>}
       {chat.loadError && (
@@ -118,11 +167,18 @@ function ChatScreen() {
         typing={chat.partnerTyping}
         partnerName={partnerName}
         quotes={chat.quotes}
+        pinnedIds={pinnedIds}
+        jumpRequest={jumpRequest}
         onLoadOlder={chat.loadOlder}
         onDelete={chat.deleteMessage}
         onRetry={chat.retry}
         onReply={startReply}
         onEdit={startEdit}
+        onTogglePin={async (m) => {
+          const r = await chat.togglePin(m);
+          if (!r.ok) showToast('পিন করা যায়নি, আবার চেষ্টা করুন');
+          else showToast(r.pinned ? '📌 পিন করা হলো, দুজনেই উপরে দেখবেন' : 'পিন সরানো হলো');
+        }}
         onReact={chat.react}
       />
 
@@ -139,6 +195,26 @@ function ChatScreen() {
         onImage={sendImage}
         onTyping={chat.sendTyping}
       />
+
+      {searchOpen && (
+        <SearchPanel
+          meId={me.id}
+          partnerName={partnerName}
+          onSearch={chat.searchMessages}
+          onClose={closeSearch}
+          onPick={(m) => {
+            setSearchOpen(false);
+            jumpToMessage(m);
+          }}
+        />
+      )}
+
+      <NudgeLayer trigger={nudgeTrigger} message={nudgeText} />
+      {toast && (
+        <div className="toast" role="status">
+          {toast}
+        </div>
+      )}
     </main>
   );
 }

@@ -2,7 +2,19 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Avatar } from './Avatar';
-import { BellIcon, BellOffIcon, DevicesIcon, KeyIcon, LockIcon, LogoutIcon, MoreIcon, PaletteIcon, PenIcon } from './Icons';
+import {
+  BellIcon,
+  BellOffIcon,
+  DevicesIcon,
+  HeartIcon,
+  KeyIcon,
+  LockIcon,
+  LogoutIcon,
+  MoreIcon,
+  PaletteIcon,
+  PenIcon,
+  SearchIcon,
+} from './Icons';
 import { DevicesDialog } from './DevicesDialog';
 import { AppLockDialog } from './AppLockDialog';
 import { ThemeDialog } from './ThemeDialog';
@@ -22,9 +34,24 @@ type Props = {
   onLogout: () => void;
   /** অন্য ডিভাইস লগআউট করার পর তাদের সাথে সাথে জানানো */
   onKickSessions: (ids: string[]) => void;
+  onOpenSearch: () => void;
+  /** "মনে পড়ছে" পাঠানো */
+  onNudge: () => void;
 };
 
-export function ChatHeader({ me, partner, online, typing, connected, push, onRename, onLogout, onKickSessions }: Props) {
+export function ChatHeader({
+  me,
+  partner,
+  online,
+  typing,
+  connected,
+  push,
+  onRename,
+  onLogout,
+  onKickSessions,
+  onOpenSearch,
+  onNudge,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
@@ -102,6 +129,19 @@ export function ChatHeader({ me, partner, online, typing, connected, push, onRen
           {statusLine}
         </p>
       </div>
+
+      <button className="icon-btn on-header" aria-label="মেসেজ খুঁজুন" onClick={onOpenSearch}>
+        <SearchIcon />
+      </button>
+      <button
+        className="icon-btn on-header nudge-btn"
+        aria-label={partner ? `${partner.display_name}-কে জানান মনে পড়ছে` : 'মনে পড়ছে'}
+        title="মনে পড়ছে"
+        disabled={!partner}
+        onClick={onNudge}
+      >
+        <HeartIcon />
+      </button>
 
       <div className="menu-wrap" ref={menuRef}>
         <button className="icon-btn on-header" aria-label="মেনু" aria-expanded={open} onClick={() => setOpen((v) => !v)}>

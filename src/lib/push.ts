@@ -210,7 +210,7 @@ export async function disablePush() {
 }
 
 /** মেসেজ সার্ভারে পৌঁছানোর পর ডাকা হয়; একই মেসেজে দুবার ডাকলেও একবারই push যায় */
-export async function notifyPartner(messageId: string, kind: 'message' | 'reaction' = 'message') {
+export async function notifyPartner(messageId: string, kind: 'message' | 'reaction' | 'nudge' = 'message') {
   if (!pushConfigured()) return;
   try {
     const {
@@ -234,7 +234,7 @@ export async function clearNotifications() {
   try {
     const reg = await navigator.serviceWorker.getRegistration('/');
     // মেসেজ ও রিঅ্যাকশন — দুই ধরনের নোটিফিকেশনই সরাই
-    for (const tag of [NOTIF_TAG, 'dujone-reaction']) {
+    for (const tag of [NOTIF_TAG, 'dujone-reaction', 'dujone-nudge']) {
       const list = (await reg?.getNotifications({ tag })) ?? [];
       list.forEach((n) => n.close());
     }
