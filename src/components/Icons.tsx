@@ -121,6 +121,14 @@ export const LockIcon = ({ size = 18, className }: P) => (
   </svg>
 );
 
+export const DevicesIcon = ({ size = 18, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <rect x="2.5" y="5" width="13" height="10" rx="1.5" />
+    <path d="M1.5 18.5h10" />
+    <rect x="15.5" y="8" width="6.5" height="12" rx="1.5" />
+  </svg>
+);
+
 export const PenIcon = ({ size = 18, className }: P) => (
   <svg {...base(size)} className={className}>
     <path d="M4 20h4L19 9l-4-4L4 16v4Z" />

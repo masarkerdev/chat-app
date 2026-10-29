@@ -218,6 +218,18 @@ create table if not exists public.push_subscriptions (
 create index if not exists push_subscriptions_user_idx on public.push_subscriptions (user_id);
 alter table public.push_subscriptions enable row level security;
 
+-- কোন লগইন-সেশনের ডিভাইস (ডিভাইস লগআউট করলে তার নোটিফিকেশনও বন্ধ হয়)
+alter table public.push_subscriptions add column if not exists session_id uuid;
+
+-- এই মুহূর্তের লগইন-সেশনের id (JWT-এর session_id)
+create or replace function public.current_session_id()
+returns uuid
+language sql
+stable
+as $$
+  select nullif(auth.jwt() ->> 'session_id', '')::uuid;
+$$;
+
 -- একই মেসেজের জন্য দুবার নোটিফিকেশন যাওয়া ঠেকায়
 create table if not exists public.push_log (
   message_id uuid primary key references public.messages(id) on delete cascade,
@@ -243,13 +255,14 @@ begin
     raise exception 'invalid subscription';
   end if;
 
-  insert into public.push_subscriptions (endpoint, user_id, p256dh, auth, user_agent)
-  values (p_endpoint, auth.uid(), p_p256dh, p_auth, left(p_user_agent, 300))
+  insert into public.push_subscriptions (endpoint, user_id, p256dh, auth, user_agent, session_id)
+  values (p_endpoint, auth.uid(), p_p256dh, p_auth, left(p_user_agent, 300), public.current_session_id())
   on conflict (endpoint) do update
      set user_id    = excluded.user_id,
          p256dh     = excluded.p256dh,
          auth       = excluded.auth,
          user_agent = excluded.user_agent,
+         session_id = excluded.session_id,
          updated_at = now();
 end;
 $$;
@@ -483,3 +496,87 @@ as $$
 $$;
 
 grant execute on function public.ping() to anon, authenticated;
+
+-- =====================================================================
+-- ১১. লগইন করা ডিভাইস — তালিকা দেখা ও অন্য ডিভাইস লগআউট
+--     Supabase-এর auth.sessions-এ প্রতিটি লগইন একটি সেশন। সেশন মুছলে
+--     সেই ডিভাইস আর টোকেন নবায়ন করতে পারে না, অর্থাৎ লগআউট হয়ে যায়।
+-- =====================================================================
+
+-- নিজের সব সক্রিয় লগইন (এই ডিভাইস সবার উপরে)
+create or replace function public.list_my_sessions()
+returns table (
+  session_id  uuid,
+  created_at  timestamptz,
+  last_active timestamptz,
+  user_agent  text,
+  ip          text,
+  is_current  boolean,
+  has_push    boolean
+)
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select s.id,
+         s.created_at,
+         coalesce(s.updated_at, s.created_at),
+         s.user_agent,
+         host(s.ip),
+         s.id = public.current_session_id(),
+         exists (select 1 from public.push_subscriptions p where p.session_id = s.id)
+    from auth.sessions s
+   where s.user_id = auth.uid()
+     and (s.not_after is null or s.not_after > now())
+   order by (s.id = public.current_session_id()) desc,
+            coalesce(s.updated_at, s.created_at) desc;
+$$;
+
+-- একটি নির্দিষ্ট ডিভাইস লগআউট (নিজের এই ডিভাইস নয়)
+create or replace function public.revoke_session(p_session_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+begin
+  if p_session_id is null or p_session_id = public.current_session_id() then
+    raise exception 'এই ডিভাইস এখান থেকে লগআউট করা যায় না';
+  end if;
+  delete from public.push_subscriptions where session_id = p_session_id and user_id = auth.uid();
+  delete from auth.sessions where id = p_session_id and user_id = auth.uid();
+  return found;
+end;
+$$;
+
+-- এই ডিভাইস ছাড়া বাকি সব লগআউট; মুছে যাওয়া সেশনগুলোর id ফেরত দেয়
+create or replace function public.revoke_other_sessions(p_keep_endpoint text default null)
+returns setof uuid
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_cur uuid := public.current_session_id();
+begin
+  if v_cur is null then
+    raise exception 'session id পাওয়া যায়নি, আবার লগইন করুন';
+  end if;
+  delete from public.push_subscriptions
+   where user_id = auth.uid()
+     and session_id is distinct from v_cur
+     and endpoint is distinct from p_keep_endpoint;
+  return query
+    delete from auth.sessions
+     where user_id = auth.uid() and id <> v_cur
+    returning id;
+end;
+$$;
+
+revoke execute on function public.list_my_sessions()           from public, anon;
+revoke execute on function public.revoke_session(uuid)         from public, anon;
+revoke execute on function public.revoke_other_sessions(text)  from public, anon;
+grant  execute on function public.list_my_sessions()           to authenticated;
+grant  execute on function public.revoke_session(uuid)         to authenticated;
+grant  execute on function public.revoke_other_sessions(text)  to authenticated;

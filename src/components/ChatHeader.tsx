@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Avatar } from './Avatar';
-import { BellIcon, BellOffIcon, KeyIcon, LockIcon, LogoutIcon, MoreIcon, PaletteIcon, PenIcon } from './Icons';
+import { BellIcon, BellOffIcon, DevicesIcon, KeyIcon, LockIcon, LogoutIcon, MoreIcon, PaletteIcon, PenIcon } from './Icons';
+import { DevicesDialog } from './DevicesDialog';
 import { AppLockDialog } from './AppLockDialog';
 import { ThemeDialog } from './ThemeDialog';
 import { PasswordDialog } from './PasswordDialog';
@@ -19,13 +20,16 @@ type Props = {
   push: ReturnType<typeof usePush>;
   onRename: (name: string) => void;
   onLogout: () => void;
+  /** অন্য ডিভাইস লগআউট করার পর তাদের সাথে সাথে জানানো */
+  onKickSessions: (ids: string[]) => void;
 };
 
-export function ChatHeader({ me, partner, online, typing, connected, push, onRename, onLogout }: Props) {
+export function ChatHeader({ me, partner, online, typing, connected, push, onRename, onLogout, onKickSessions }: Props) {
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   const [lockOpen, setLockOpen] = useState(false);
+  const [devicesOpen, setDevicesOpen] = useState(false);
   const [, forceTick] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -139,6 +143,15 @@ export function ChatHeader({ me, partner, online, typing, connected, push, onRen
             >
               <LockIcon /> অ্যাপ লক (PIN)
             </button>
+            <button
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                setDevicesOpen(true);
+              }}
+            >
+              <DevicesIcon /> লগইন করা ডিভাইস
+            </button>
             {(push.supported || push.iosTab) && (
               <button role="menuitem" onClick={togglePush} disabled={push.busy}>
                 {push.active ? (
@@ -161,6 +174,7 @@ export function ChatHeader({ me, partner, online, typing, connected, push, onRen
 
       {pwOpen && <PasswordDialog onClose={() => setPwOpen(false)} />}
       {lockOpen && <AppLockDialog onClose={() => setLockOpen(false)} />}
+      {devicesOpen && <DevicesDialog onKick={onKickSessions} onClose={() => setDevicesOpen(false)} />}
       {themeOpen && (
         <ThemeDialog partnerName={partner?.display_name ?? 'অপর জন'} onClose={() => setThemeOpen(false)} />
       )}

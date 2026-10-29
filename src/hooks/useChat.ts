@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabase, IMAGE_BUCKET, PAGE_SIZE } from '@/lib/supabase';
 import { compressImage, extFor } from '@/lib/image';
-import { clearNotifications, disablePush, isPushActive, notifyPartner, syncPush } from '@/lib/push';
+import { clearNotifications, disablePush, isPushActive, notifyPartner, syncPush, unsubscribeLocal } from '@/lib/push';
+import { sessionIdFromToken } from '@/lib/devices';
 import { clearLock, isLocked } from '@/lib/applock';
 import type { Message, Profile, Reaction } from '@/lib/types';
 
@@ -99,6 +100,10 @@ export function useChat() {
   const seenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unreadHidden = useRef(0);
   const loadingOlderRef = useRef(false);
+  /** এই লগইনের session_id — অন্য ডিভাইস থেকে লগআউট সংকেত চিনতে */
+  const mySession = useRef<string | null>(null);
+  /** নিজে "লগআউট" চাপলে true; না হলে লগআউট মানে অন্য ডিভাইস থেকে বের করে দেওয়া */
+  const manualLogout = useRef(false);
 
   messagesRef.current = messages;
 
@@ -152,6 +157,27 @@ export function useChat() {
     }
   }, [updateTitle]);
 
+  /** অন্য ডিভাইস থেকে লগআউট করা হলে: এই ডিভাইস পরিষ্কার করে লগইন পেইজে */
+  const forceLogout = useCallback(async () => {
+    if (manualLogout.current) return;
+    manualLogout.current = true;
+    clearLock();
+    await unsubscribeLocal();
+    await getSupabase().auth.signOut({ scope: 'local' });
+    router.replace('/login?reason=revoked');
+  }, [router]);
+
+  /** এই লগইন এখনো বৈধ কিনা সার্ভারে যাচাই (অন্য ডিভাইস থেকে বাতিল হয়ে থাকতে পারে) */
+  const validateSession = useCallback(async () => {
+    const { error } = await getSupabase().auth.getUser();
+    if (!error) return;
+    const gone =
+      error.code === 'session_not_found' ||
+      /session.*(not found|does not exist)|session_id/i.test(error.message) ||
+      error.status === 403;
+    if (gone) forceLogout();
+  }, [forceLogout]);
+
   const loadLatest = useCallback(async (initial = false) => {
     const { data, error } = await getSupabase()
       .from('messages')
@@ -188,6 +214,7 @@ export function useChat() {
         loadLatest();
         markSeen();
         touchLastSeen();
+        validateSession();
       } else {
         room?.untrack();
         touchLastSeen();
@@ -204,6 +231,8 @@ export function useChat() {
         return;
       }
       const uid = session.user.id;
+      mySession.current = sessionIdFromToken(session.access_token);
+      validateSession();
 
       const { data: profiles, error } = await sb
         .from('profiles')
@@ -290,6 +319,11 @@ export function useChat() {
           const pid = partnerRef.current?.id;
           setPartnerOnline(!!pid && (state[pid]?.length ?? 0) > 0);
         })
+        .on('broadcast', { event: 'force-logout' }, ({ payload }) => {
+          // অন্য ডিভাইস থেকে "এই ডিভাইস লগআউট" চাপা হয়েছে
+          const ids = (payload?.session_ids ?? []) as string[];
+          if (mySession.current && ids.includes(mySession.current)) forceLogout();
+        })
         .on('broadcast', { event: 'typing' }, ({ payload }) => {
           if (!payload || payload.user_id === uid) return;
           const typing = !!payload.typing;
@@ -315,7 +349,15 @@ export function useChat() {
 
     // টোকেন রিফ্রেশ হলে রিয়েলটাইমেও নতুন টোকেন দিই; লগআউট হলে লগইন পেইজে
     const { data: authSub } = sb.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') router.replace('/login');
+      if (event === 'SIGNED_OUT') {
+        // নিজে লগআউট না করলে (টোকেন বাতিল হয়ে গেছে) — পরিষ্কার করে কারণসহ লগইন পেইজে
+        if (!manualLogout.current) {
+          manualLogout.current = true;
+          clearLock();
+          unsubscribeLocal();
+          router.replace('/login?reason=revoked');
+        } else router.replace('/login');
+      }
       if (event === 'TOKEN_REFRESHED' && session) sb.realtime.setAuth(session.access_token);
     });
 
@@ -330,7 +372,7 @@ export function useChat() {
       if (room) sb.removeChannel(room);
       roomRef.current = null;
     };
-  }, [router, loadLatest, markSeen, notify, touchLastSeen, updateTitle]);
+  }, [router, loadLatest, markSeen, notify, touchLastSeen, updateTitle, validateSession, forceLogout]);
 
   // নতুন মেসেজ এলে (এবং পেইজ দেখা গেলে) seen মার্ক
   useEffect(() => {
@@ -564,13 +606,21 @@ export function useChat() {
   }, []);
 
   const logout = useCallback(async () => {
+    manualLogout.current = true;
     touchLastSeen();
     // লগআউটের পর এই ডিভাইসে আর নোটিফিকেশন আসবে না, আর PIN লকও মুছে যায়
     await disablePush();
     clearLock();
-    await getSupabase().auth.signOut();
+    // শুধু এই ডিভাইস থেকে — অন্য ডিভাইসগুলো লগইন থাকে
+    await getSupabase().auth.signOut({ scope: 'local' });
     router.replace('/login');
   }, [router, touchLastSeen]);
+
+  /** অন্য ডিভাইসগুলোকে সাথে সাথে জানানো, যাতে খোলা থাকলেও তখনই লগআউট হয় */
+  const kickSessions = useCallback((ids: string[]) => {
+    if (!ids.length) return;
+    roomRef.current?.send({ type: 'broadcast', event: 'force-logout', payload: { session_ids: ids } });
+  }, []);
 
   return {
     status,
@@ -595,5 +645,7 @@ export function useChat() {
     sendTyping,
     updateName,
     logout,
+    kickSessions,
+    sessionId: mySession,
   };
 }

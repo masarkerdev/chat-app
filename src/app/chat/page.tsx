@@ -98,6 +98,7 @@ function ChatScreen() {
         push={push}
         onRename={chat.updateName}
         onLogout={chat.logout}
+        onKickSessions={chat.kickSessions}
       />
 
       <PushBanner push={push} />

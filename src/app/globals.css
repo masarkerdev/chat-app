@@ -1859,3 +1859,133 @@ button {
 .bubble {
   cursor: default;
 }
+
+/* =========================================================
+   লগইন করা ডিভাইস
+   ========================================================= */
+.devices-dialog {
+  max-width: 440px;
+}
+.devices-intro {
+  position: relative;
+  margin: 2px 0 10px;
+}
+.devices-loading {
+  display: grid;
+  place-items: center;
+  padding: 26px 0;
+}
+.devices {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.device {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 2px;
+  border-bottom: 1.5px dashed var(--line);
+}
+.device:last-child {
+  border-bottom: 0;
+}
+.device-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: var(--cloth);
+  color: var(--muted);
+}
+.device.is-current .device-icon {
+  background: var(--indigo);
+  color: var(--on-me);
+}
+.device-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.device-name {
+  font-weight: 600;
+  line-height: 1.3;
+}
+.device-browser {
+  font-weight: 400;
+  color: var(--muted);
+}
+.device-bell {
+  margin-left: 6px;
+  vertical-align: -1px;
+  color: var(--muted);
+}
+.device-meta {
+  font-size: 0.84rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.device.is-current .device-meta {
+  color: var(--leaf);
+}
+.device-ip {
+  font-size: 0.76rem;
+  color: var(--muted);
+  opacity: 0.8;
+}
+.device-out {
+  flex-shrink: 0;
+  min-width: 74px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1.5px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--danger);
+  font-size: 0.9rem;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+}
+.device-out:hover {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+.device-out .spinner,
+.devices-all .spinner {
+  width: 16px;
+  height: 16px;
+}
+.devices-all {
+  position: relative;
+  width: 100%;
+  margin-top: 12px;
+  display: grid;
+  place-items: center;
+}
+.devices-notice {
+  position: relative;
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--leaf) 12%, transparent);
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+.devices-error,
+.devices-only {
+  position: relative;
+  margin-top: 10px;
+}
+.login-notice {
+  margin: -12px 0 18px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--turmeric) 22%, transparent);
+  color: var(--ink);
+  font-size: 0.92rem;
+  text-align: left;
+}

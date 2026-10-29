@@ -171,6 +171,29 @@ export async function syncPush() {
   }
 }
 
+/** এই ডিভাইসের push ঠিকানা (থাকলে) */
+export async function currentEndpoint(): Promise<string | null> {
+  if (!pushSupported()) return null;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration('/');
+    return (await reg?.pushManager.getSubscription())?.endpoint ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** সার্ভারে না জানিয়ে শুধু এই ব্রাউজারে push বন্ধ (লগআউট হয়ে গেলে) */
+export async function unsubscribeLocal() {
+  if (!pushSupported()) return;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration('/');
+    await (await reg?.pushManager.getSubscription())?.unsubscribe();
+  } catch {
+    /* কিছু করার নেই */
+  }
+  setActive(false);
+}
+
 export async function disablePush() {
   if (!pushSupported()) return;
   try {
