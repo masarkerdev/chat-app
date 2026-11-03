@@ -90,3 +90,29 @@ export function formatFull(iso: string) {
   // সময়ের অংশ ("সকাল ৭:১১") যেন দুই লাইনে ভেঙে না যায়
   return `${date}, ${dayPart(h)}\u00a0${bnNum(h12)}:${bnNum(d.getMinutes(), 2)}`;
 }
+
+/** মুছে যাওয়ার সময়ের বিকল্প */
+export const DISAPPEAR_OPTIONS: { seconds: number; label: string }[] = [
+  { seconds: 0, label: 'বন্ধ' },
+  { seconds: 3600, label: '১ ঘণ্টা' },
+  { seconds: 86400, label: '২৪ ঘণ্টা' },
+  { seconds: 7 * 86400, label: '৭ দিন' },
+  { seconds: 90 * 86400, label: '৯০ দিন' },
+];
+
+export function disappearLabel(seconds: number) {
+  const o = DISAPPEAR_OPTIONS.find((x) => x.seconds === seconds);
+  if (o) return o.label;
+  if (seconds % 86400 === 0) return `${(seconds / 86400).toLocaleString('bn-BD')} দিন`;
+  if (seconds % 3600 === 0) return `${(seconds / 3600).toLocaleString('bn-BD')} ঘণ্টা`;
+  return `${Math.round(seconds / 60).toLocaleString('bn-BD')} মিনিট`;
+}
+
+/** কত পর মুছবে: "২৩ ঘণ্টা পর", "৫ দিন পর" */
+export function formatRemaining(iso: string) {
+  const sec = Math.max(0, (new Date(iso).getTime() - Date.now()) / 1000);
+  const bn = (n: number) => Math.max(1, Math.round(n)).toLocaleString('bn-BD');
+  if (sec < 3600) return `${bn(sec / 60)} মিনিট পর`;
+  if (sec < 86400) return `${bn(sec / 3600)} ঘণ্টা পর`;
+  return `${bn(sec / 86400)} দিন পর`;
+}

@@ -2,9 +2,9 @@
 
 import { memo, useLayoutEffect, useRef, useState } from 'react';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
-import { formatFull, formatTime, isEmojiOnly, snippet, splitLinks } from '@/lib/format';
+import { formatFull, formatRemaining, formatTime, isEmojiOnly, snippet, splitLinks } from '@/lib/format';
 import { QUICK_REACTIONS, type Message } from '@/lib/types';
-import { AlertIcon, ArrowDownIcon, CopyIcon, PenIcon, PinIcon, ReplyIcon, RetryIcon, TrashIcon } from './Icons';
+import { AlertIcon, ArrowDownIcon, CopyIcon, PenIcon, PinIcon, ReplyIcon, RetryIcon, TimerIcon, TrashIcon } from './Icons';
 
 export type Quote = {
   /** মূল মেসেজ; null = পাওয়া যায়নি / মুছে গেছে */
@@ -26,6 +26,7 @@ type Props = {
   onActivate: (id: string | null) => void;
   onOpenImage: (url: string) => void;
   onDelete: (id: string) => void;
+  onHide: (id: string) => void;
   onRetry: (id: string) => void;
   onReply: (msg: Message) => void;
   onEdit: (msg: Message) => void;
@@ -72,6 +73,7 @@ function MessageBubbleBase({
   onActivate,
   onOpenImage,
   onDelete,
+  onHide,
   onRetry,
   onReply,
   onEdit,
@@ -187,9 +189,15 @@ function MessageBubbleBase({
     }
   };
 
-  const remove = () => {
+  // সবার কাছ থেকে: শুধু নিজের মেসেজ; পাঠানো না গেলে শুধু এখান থেকে সরে
+  const removeForAll = () => {
     close();
-    if (confirm('মেসেজটি দুজনের কাছ থেকেই মুছে যাবে। মুছবেন?')) onDelete(msg.id);
+    if (msg.failed || confirm('মেসেজটি দুজনের কাছ থেকেই মুছে যাবে। মুছবেন?')) onDelete(msg.id);
+  };
+  const removeForMe = () => {
+    close();
+    if (confirm(`মেসেজটি শুধু আপনার কাছ থেকে মুছে যাবে।${mine ? ' অপর জন এখনো দেখতে পাবেন।' : ''} মুছবেন?`))
+      onHide(msg.id);
   };
 
   // একই ইমোজি দুজনে দিলে একসাথে "২" দেখাবে
@@ -228,6 +236,7 @@ function MessageBubbleBase({
             active ? 'is-active' : '',
             msg.failed ? 'is-failed' : '',
             msg.edited_at ? 'is-edited' : '',
+            msg.expires_at ? 'is-expiring' : '',
           ].join(' ')}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -291,6 +300,7 @@ function MessageBubbleBase({
           )}
 
           <span className="meta">
+            {msg.expires_at && <TimerIcon size={12} className="meta-timer" />}
             {pinned && <PinIcon size={12} className="meta-pin" />}
             {msg.edited_at && <span className="edited">সম্পাদিত</span>}
             <time dateTime={msg.created_at}>{formatTime(msg.created_at)}</time>
@@ -381,9 +391,14 @@ function MessageBubbleBase({
                   <CopyIcon /> কপি
                 </button>
               )}
+              {sent && (
+                <button role="menuitem" className="danger" onClick={removeForMe}>
+                  <TrashIcon /> আমার কাছ থেকে মুছুন
+                </button>
+              )}
               {mine && (
-                <button role="menuitem" className="danger" onClick={remove}>
-                  <TrashIcon /> মুছে ফেলুন
+                <button role="menuitem" className="danger" onClick={removeForAll}>
+                  <TrashIcon /> {msg.failed ? 'মুছে ফেলুন' : 'সবার কাছ থেকে মুছুন'}
                 </button>
               )}
             </div>
@@ -395,6 +410,7 @@ function MessageBubbleBase({
             <span>পাঠানো: {formatFull(msg.created_at)}</span>
             {mine && msg.seen_at && <span>দেখেছে: {formatFull(msg.seen_at)}</span>}
             {msg.edited_at && <span>সম্পাদিত: {formatFull(msg.edited_at)}</span>}
+            {msg.expires_at && <span>মুছে যাবে: {formatRemaining(msg.expires_at)}</span>}
           </div>
         )}
 

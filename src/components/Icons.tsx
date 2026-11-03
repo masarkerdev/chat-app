@@ -149,6 +149,20 @@ export const HeartIcon = ({ size = 22, className }: P) => (
   </svg>
 );
 
+export const TimerIcon = ({ size = 18, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="12" cy="13" r="8" />
+    <path d="M12 9v4l2.5 2M9.5 2.5h5" />
+  </svg>
+);
+
+export const ChatClearIcon = ({ size = 18, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z" />
+    <path d="m9.5 9.5 5 5M14.5 9.5l-5 5" />
+  </svg>
+);
+
 export const PenIcon = ({ size = 18, className }: P) => (
   <svg {...base(size)} className={className}>
     <path d="M4 20h4L19 9l-4-4L4 16v4Z" />

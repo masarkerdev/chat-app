@@ -2236,3 +2236,141 @@ button {
   box-shadow: var(--lift);
   animation: settle 0.18s ease-out;
 }
+
+/* =========================================================
+   মোছা ও নিজে মুছে যাওয়া
+   ========================================================= */
+.disappear-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 12px;
+  border: 0;
+  border-bottom: 2px dashed var(--line);
+  background: color-mix(in srgb, var(--me) 8%, var(--paper));
+  color: var(--me-ink);
+  font-size: 0.84rem;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.meta-timer {
+  opacity: 0.9;
+}
+.choice-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+  text-align: left;
+}
+.choice.is-on {
+  border-color: var(--indigo);
+  box-shadow: inset 0 0 0 1.5px var(--indigo);
+}
+.choice-row {
+  align-items: center;
+  padding: 10px 14px;
+}
+.choice-dot {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  border-radius: 50%;
+  border: 2px dashed var(--seam);
+}
+.choice-row .choice-dot {
+  margin-top: 0;
+}
+.choice.is-on .choice-dot {
+  border: 6px solid var(--indigo);
+}
+.choice-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.choice-body span {
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.choice .spinner {
+  width: 16px;
+  height: 16px;
+}
+.clear-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.understood {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+.understood input {
+  margin-top: 4px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--danger);
+}
+.primary-btn.danger-btn {
+  background: var(--danger);
+  color: #fff;
+}
+.primary-btn.danger-btn:hover {
+  background: color-mix(in oklab, var(--danger) 85%, black);
+}
+.primary-btn.danger-btn:disabled {
+  opacity: 0.45;
+}
+.disappear-hero {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin: 6px auto 8px;
+  border-radius: 50%;
+  border: 2px dashed var(--seam);
+  color: var(--me-ink);
+}
+.disappear-intro {
+  position: relative;
+  margin: 0 0 14px;
+  text-align: center;
+}
+.disappear-note {
+  position: relative;
+  margin-top: 12px;
+}
+
+/* টাইমার চিহ্নের জন্য বাড়তি জায়গা */
+.bubble.is-expiring .meta-spacer {
+  width: 74px;
+}
+.bubble-mine.is-expiring .meta-spacer {
+  width: 94px;
+}
+.bubble.is-expiring.is-edited .meta-spacer {
+  width: 130px;
+}
+.bubble-mine.is-expiring.is-edited .meta-spacer {
+  width: 150px;
+}

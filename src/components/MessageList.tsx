@@ -20,6 +20,7 @@ type Props = {
   /** বাইরে থেকে (খোঁজা/পিন) কোনো মেসেজে যাওয়ার অনুরোধ */
   jumpRequest: { id: string; key: number } | null;
   onDelete: (id: string) => void;
+  onHide: (id: string) => void;
   onRetry: (id: string) => void;
   onReply: (msg: Message) => void;
   onEdit: (msg: Message) => void;
@@ -41,6 +42,7 @@ export function MessageList({
   jumpRequest,
   onLoadOlder,
   onDelete,
+  onHide,
   onRetry,
   onReply,
   onEdit,
@@ -233,6 +235,7 @@ export function MessageList({
                 onActivate={setActiveId}
                 onOpenImage={setViewer}
                 onDelete={onDelete}
+                onHide={onHide}
                 onRetry={onRetry}
                 onReply={onReply}
                 onEdit={onEdit}

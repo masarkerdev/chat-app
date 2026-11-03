@@ -693,3 +693,163 @@ begin
     alter publication supabase_realtime add table public.nudges;
   end if;
 end $$;
+
+-- =====================================================================
+-- ১৩. মেসেজ মোছা (আমার কাছ থেকে / সবার কাছ থেকে), পুরো চ্যাট মোছা,
+--     নির্দিষ্ট সময় পর নিজে থেকে মুছে যাওয়া মেসেজ
+-- =====================================================================
+
+-- ---- "আমার কাছ থেকে মুছুন": শুধু নিজের কাছে লুকানো ----
+create table if not exists public.hidden_messages (
+  user_id    uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  message_id uuid not null references public.messages(id) on delete cascade,
+  hidden_at  timestamptz not null default now(),
+  primary key (user_id, message_id)
+);
+alter table public.hidden_messages enable row level security;
+
+drop policy if exists "own hidden read"  on public.hidden_messages;
+drop policy if exists "own hidden add"   on public.hidden_messages;
+create policy "own hidden read" on public.hidden_messages
+  for select to authenticated using (user_id = auth.uid());
+create policy "own hidden add" on public.hidden_messages
+  for insert to authenticated with check (user_id = auth.uid() and public.is_member());
+
+-- ---- "পুরো চ্যাট আমার কাছ থেকে মুছুন": এই সময়ের আগের সব লুকানো ----
+alter table public.profiles add column if not exists cleared_before timestamptz;
+
+create or replace function public.my_cleared_before()
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((select cleared_before from public.profiles where id = auth.uid()), '-infinity'::timestamptz);
+$$;
+
+-- ---- নির্দিষ্ট সময় পর মুছে যাওয়া ----
+alter table public.messages add column if not exists expires_at timestamptz;
+create index if not exists messages_expires_idx on public.messages (expires_at) where expires_at is not null;
+
+-- পুরো চ্যাটের একটাই সেটিং (দুজনের জন্য একই)
+create table if not exists public.chat_settings (
+  id                 int primary key default 1 check (id = 1),
+  disappear_seconds  int not null default 0 check (disappear_seconds between 0 and 31536000),
+  updated_by         uuid references public.profiles(id) on delete set null,
+  updated_at         timestamptz not null default now()
+);
+insert into public.chat_settings (id) values (1) on conflict do nothing;
+alter table public.chat_settings enable row level security;
+
+drop policy if exists "members read settings"   on public.chat_settings;
+drop policy if exists "members update settings" on public.chat_settings;
+create policy "members read settings" on public.chat_settings
+  for select to authenticated using (public.is_member());
+create policy "members update settings" on public.chat_settings
+  for update to authenticated
+  using (public.is_member())
+  with check (public.is_member() and updated_by = auth.uid());
+
+-- নতুন মেসেজে সেটিং অনুযায়ী মেয়াদ বসে (ক্লায়েন্ট নিজে ঠিক করতে পারে না)
+create or replace function public.set_message_expiry()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_secs int;
+begin
+  select disappear_seconds into v_secs from public.chat_settings where id = 1;
+  if coalesce(v_secs, 0) > 0 then
+    new.expires_at := now() + make_interval(secs => v_secs);
+  else
+    new.expires_at := null;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists messages_set_expiry on public.messages;
+create trigger messages_set_expiry
+  before insert on public.messages
+  for each row execute function public.set_message_expiry();
+
+-- ---- কোন মেসেজ কে দেখতে পাবে ----
+-- সদস্য + মেয়াদ শেষ হয়নি + নিজে "চ্যাট মুছুন" করার পরের + নিজে লুকায়নি
+drop policy if exists "members read messages" on public.messages;
+create policy "members read messages" on public.messages
+  for select to authenticated
+  using (
+    public.is_member()
+    and (expires_at is null or expires_at > now())
+    and created_at > public.my_cleared_before()
+    and not exists (
+      select 1 from public.hidden_messages h
+       where h.message_id = messages.id and h.user_id = auth.uid()
+    )
+  );
+
+-- লুকানো/মুছে যাওয়া মেসেজের পিনও দেখাবে না
+drop policy if exists "members read pins" on public.pinned_messages;
+create policy "members read pins" on public.pinned_messages
+  for select to authenticated
+  using (public.is_member() and exists (select 1 from public.messages m where m.id = message_id));
+
+-- পুরো চ্যাট বা মেয়াদোত্তীর্ণ মেসেজের ছবি সদস্যরা মুছতে পারবে
+drop policy if exists "members delete chat images" on storage.objects;
+create policy "members delete chat images" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'chat-images' and public.is_member());
+
+-- ---- দুজনের কাছ থেকেই পুরো চ্যাট মোছা ----
+-- সব মেসেজ (আর তাদের রিঅ্যাকশন, পিন, রিপ্লাই-লিংক) মুছে ছবির ঠিকানা ফেরত দেয়
+create or replace function public.clear_chat_all()
+returns setof text
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_member() then
+    raise exception 'not a member';
+  end if;
+  return query
+    delete from public.messages returning image_path;
+end;
+$$;
+
+-- ---- মেয়াদ শেষ হওয়া মেসেজ সত্যিই মুছে ফেলা ----
+-- অ্যাপ খুললে চলে; মুছে যাওয়া ছবির ঠিকানা ফেরত দেয় যাতে ছবিও মোছা যায়
+create or replace function public.purge_expired()
+returns setof text
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_member() then
+    return;
+  end if;
+  return query
+    delete from public.messages
+     where expires_at is not null and expires_at <= now()
+    returning image_path;
+end;
+$$;
+
+revoke execute on function public.clear_chat_all()   from public, anon;
+revoke execute on function public.purge_expired()    from public, anon;
+grant  execute on function public.clear_chat_all()   to authenticated;
+grant  execute on function public.purge_expired()    to authenticated;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'chat_settings'
+  ) then
+    alter publication supabase_realtime add table public.chat_settings;
+  end if;
+end $$;

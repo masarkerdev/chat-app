@@ -5,6 +5,7 @@ import { Avatar } from './Avatar';
 import {
   BellIcon,
   BellOffIcon,
+  ChatClearIcon,
   DevicesIcon,
   HeartIcon,
   KeyIcon,
@@ -14,6 +15,7 @@ import {
   PaletteIcon,
   PenIcon,
   SearchIcon,
+  TimerIcon,
 } from './Icons';
 import { DevicesDialog } from './DevicesDialog';
 import { AppLockDialog } from './AppLockDialog';
@@ -37,6 +39,8 @@ type Props = {
   onOpenSearch: () => void;
   /** "মনে পড়ছে" পাঠানো */
   onNudge: () => void;
+  onOpenDisappear: () => void;
+  onOpenClear: () => void;
 };
 
 export function ChatHeader({
@@ -51,6 +55,8 @@ export function ChatHeader({
   onKickSessions,
   onOpenSearch,
   onNudge,
+  onOpenDisappear,
+  onOpenClear,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
@@ -191,6 +197,25 @@ export function ChatHeader({
               }}
             >
               <DevicesIcon /> লগইন করা ডিভাইস
+            </button>
+            <button
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onOpenDisappear();
+              }}
+            >
+              <TimerIcon /> মেসেজ নিজে মুছে যাওয়া
+            </button>
+            <button
+              role="menuitem"
+              className="danger"
+              onClick={() => {
+                setOpen(false);
+                onOpenClear();
+              }}
+            >
+              <ChatClearIcon /> পুরো চ্যাট মুছুন
             </button>
             {(push.supported || push.iosTab) && (
               <button role="menuitem" onClick={togglePush} disabled={push.busy}>

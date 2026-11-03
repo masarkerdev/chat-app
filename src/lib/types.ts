@@ -19,6 +19,8 @@ export type Message = {
   seen_at: string | null;
   /** লেখা পরে বদলানো হলে কখন */
   edited_at?: string | null;
+  /** এই সময়ের পর নিজে থেকে মুছে যাবে */
+  expires_at?: string | null;
   /** কোন মেসেজের উত্তরে লেখা */
   reply_to?: string | null;
   /** প্রত্যেকের একটি করে রিঅ্যাকশন */

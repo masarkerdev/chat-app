@@ -7,6 +7,7 @@ import { getSupabase, IMAGE_BUCKET, PAGE_SIZE } from '@/lib/supabase';
 import { compressImage, extFor } from '@/lib/image';
 import { clearNotifications, disablePush, isPushActive, notifyPartner, syncPush, unsubscribeLocal } from '@/lib/push';
 import { sessionIdFromToken } from '@/lib/devices';
+import { disappearLabel } from '@/lib/format';
 import { clearLock, isLocked } from '@/lib/applock';
 import type { Message, Pin, Profile, Reaction } from '@/lib/types';
 
@@ -15,7 +16,15 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const BASE_TITLE = 'Dujone';
 /** মেসেজের সাথে রিঅ্যাকশনও একসাথে আনে */
 const MSG_COLS =
-  'id, sender_id, content, image_path, created_at, seen_at, edited_at, reply_to, reactions:message_reactions(user_id, emoji)';
+  'id, sender_id, content, image_path, created_at, seen_at, edited_at, expires_at, reply_to, reactions:message_reactions(user_id, emoji)';
+
+/** ছবিগুলো স্টোরেজ থেকে মোছা (১০০টি করে) */
+async function removeImages(paths: (string | null)[]) {
+  const list = paths.filter((p): p is string => !!p);
+  for (let i = 0; i < list.length; i += 100) {
+    await getSupabase().storage.from(IMAGE_BUCKET).remove(list.slice(i, i + 100));
+  }
+}
 
 type Status = 'loading' | 'ready' | 'not-member' | 'error';
 
@@ -93,6 +102,10 @@ export function useChat() {
   const [pins, setPins] = useState<Pin[]>([]);
   /** অপর জন "মনে পড়ছে" পাঠালে */
   const [incomingNudge, setIncomingNudge] = useState<{ id: string; at: number } | null>(null);
+  /** নতুন মেসেজ কত সেকেন্ড পর মুছে যাবে (০ = বন্ধ) */
+  const [disappearSeconds, setDisappearSeconds] = useState(0);
+  /** অপর জনের কোনো কাজের খবর (চ্যাট মোছা, টাইমার বদল) — পেইজে ছোট বার্তা হিসেবে দেখায় */
+  const [chatNotice, setChatNotice] = useState<{ text: string; at: number } | null>(null);
   /** মেসেজ লোড করতে সমস্যা হলে উপরে দেখানোর বার্তা */
   const [loadError, setLoadError] = useState('');
 
@@ -274,6 +287,15 @@ export function useChat() {
       if (cancelled) return;
       setStatus('ready');
       loadPins();
+      // টাইমারের সেটিং, আর মেয়াদ শেষ হওয়া মেসেজ (ও ছবি) সত্যিই মুছে ফেলা
+      sb.from('chat_settings')
+        .select('disappear_seconds')
+        .eq('id', 1)
+        .maybeSingle()
+        .then(({ data }) => setDisappearSeconds((data as { disappear_seconds?: number } | null)?.disappear_seconds ?? 0));
+      sb.rpc('purge_expired').then(({ data }) => {
+        if (data?.length) removeImages(data as (string | null)[]);
+      });
       clearNotifications();
       syncPush();
 
@@ -313,6 +335,19 @@ export function useChat() {
             if (id) setPins((l) => l.filter((x) => x.message_id !== id));
           } else loadPins();
         })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_settings' }, (p) => {
+          const n = p.new as { disappear_seconds: number; updated_by: string | null };
+          setDisappearSeconds(n.disappear_seconds ?? 0);
+          if (n.updated_by && n.updated_by !== uid) {
+            const name = partnerRef.current?.display_name ?? 'অপর জন';
+            setChatNotice({
+              text: n.disappear_seconds
+                ? `${name} মেসেজ নিজে মুছে যাওয়া চালু করেছেন: ${disappearLabel(n.disappear_seconds)}`
+                : `${name} মেসেজ নিজে মুছে যাওয়া বন্ধ করেছেন`,
+              at: Date.now(),
+            });
+          }
+        })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'nudges' }, (p) => {
           const n = p.new as { id: string; sender_id: string };
           if (n.sender_id !== uid) setIncomingNudge({ id: n.id, at: Date.now() });
@@ -345,6 +380,17 @@ export function useChat() {
           const state = room!.presenceState();
           const pid = partnerRef.current?.id;
           setPartnerOnline(!!pid && (state[pid]?.length ?? 0) > 0);
+        })
+        .on('broadcast', { event: 'chat-cleared' }, ({ payload }) => {
+          // অপর জন দুজনের কাছ থেকেই পুরো চ্যাট মুছেছেন
+          if (payload?.user_id === uid) return;
+          setMessages([]);
+          setHasMore(false);
+          setPins([]);
+          setChatNotice({
+            text: `${partnerRef.current?.display_name ?? 'অপর জন'} পুরো চ্যাট মুছে দিয়েছেন`,
+            at: Date.now(),
+          });
         })
         .on('broadcast', { event: 'force-logout' }, ({ payload }) => {
           // অন্য ডিভাইস থেকে "এই ডিভাইস লগআউট" চাপা হয়েছে
@@ -400,6 +446,18 @@ export function useChat() {
       roomRef.current = null;
     };
   }, [router, loadLatest, loadPins, markSeen, notify, touchLastSeen, updateTitle, validateSession, forceLogout]);
+
+  // মেয়াদ শেষ হওয়া মেসেজ পর্দা থেকে সরানো (প্রতি ২০ সেকেন্ডে দেখে)
+  useEffect(() => {
+    const tick = () => {
+      const now = Date.now();
+      if (messagesRef.current.some((m) => m.expires_at && new Date(m.expires_at).getTime() <= now)) {
+        setMessages((l) => l.filter((m) => !m.expires_at || new Date(m.expires_at).getTime() > now));
+      }
+    };
+    const t = setInterval(tick, 20_000);
+    return () => clearInterval(t);
+  }, []);
 
   // নতুন মেসেজ এলে (এবং পেইজ দেখা গেলে) seen মার্ক
   useEffect(() => {
@@ -526,6 +584,57 @@ export function useChat() {
     }
     if (msg.image_path) await sb.storage.from(IMAGE_BUCKET).remove([msg.image_path]);
   }, []);
+
+  /** "আমার কাছ থেকে মুছুন" — শুধু নিজের কাছে লুকায়, অপর জন দেখতে থাকেন */
+  const hideMessage = useCallback(async (id: string) => {
+    const msg = messagesRef.current.find((m) => m.id === id);
+    if (!msg) return;
+    setMessages((l) => l.filter((m) => m.id !== id));
+    if (msg.failed || msg.pending) return;
+    const { error } = await getSupabase().from('hidden_messages').insert({ message_id: id });
+    if (error && error.code !== '23505') {
+      console.error('লুকানো যায়নি', error);
+      setMessages((l) => merge(l, [msg]));
+      alert(`মেসেজটি মুছে ফেলা যায়নি। ${explainError(error)}`);
+    }
+  }, []);
+
+  /** পুরো চ্যাট মোছা — 'me' = শুধু আমার কাছ থেকে, 'all' = দুজনের কাছ থেকেই */
+  const clearChat = useCallback(async (scope: 'me' | 'all'): Promise<string | null> => {
+    const uid = meRef.current?.id;
+    if (!uid) return 'আবার লগইন করুন';
+    const sb = getSupabase();
+    if (scope === 'me') {
+      const { error } = await sb.from('profiles').update({ cleared_before: new Date().toISOString() }).eq('id', uid);
+      if (error) return explainError(error);
+    } else {
+      const { data, error } = await sb.rpc('clear_chat_all');
+      if (error) return explainError(error);
+      await removeImages((data ?? []) as (string | null)[]);
+      roomRef.current?.send({ type: 'broadcast', event: 'chat-cleared', payload: { user_id: uid } });
+    }
+    setMessages([]);
+    setHasMore(false);
+    loadPins();
+    return null;
+  }, [loadPins]);
+
+  /** নতুন মেসেজ কত সেকেন্ড পর মুছে যাবে (০ = বন্ধ) — দুজনের জন্যই */
+  const updateDisappear = useCallback(async (seconds: number) => {
+    const uid = meRef.current?.id;
+    if (!uid) return 'আবার লগইন করুন';
+    const before = disappearSeconds;
+    setDisappearSeconds(seconds);
+    const { error } = await getSupabase()
+      .from('chat_settings')
+      .update({ disappear_seconds: seconds, updated_by: uid, updated_at: new Date().toISOString() })
+      .eq('id', 1);
+    if (error) {
+      setDisappearSeconds(before);
+      return explainError(error);
+    }
+    return null;
+  }, [disappearSeconds]);
 
   /** রিঅ্যাকশন দেওয়া / বদলানো; একই ইমোজি আবার দিলে সরে যায় */
   const react = useCallback(async (messageId: string, emoji: string) => {
@@ -742,6 +851,11 @@ export function useChat() {
     togglePin,
     sendNudge,
     incomingNudge,
+    hideMessage,
+    clearChat,
+    disappearSeconds,
+    updateDisappear,
+    chatNotice,
     searchMessages,
     ensureLoaded,
     quotes,

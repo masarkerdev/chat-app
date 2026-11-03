@@ -12,7 +12,10 @@ import { AppLockGate } from '@/components/AppLock';
 import { SearchPanel } from '@/components/SearchPanel';
 import { PinBar } from '@/components/PinBar';
 import { NudgeLayer } from '@/components/NudgeLayer';
-import { snippet } from '@/lib/format';
+import { ClearChatDialog } from '@/components/ClearChatDialog';
+import { DisappearDialog } from '@/components/DisappearDialog';
+import { TimerIcon } from '@/components/Icons';
+import { disappearLabel, snippet } from '@/lib/format';
 import type { Message } from '@/lib/types';
 
 export default function ChatPage() {
@@ -41,6 +44,8 @@ function ChatScreen() {
   }, []);
 
   const [searchOpen, setSearchOpen] = useState(false);
+  const [clearOpen, setClearOpen] = useState(false);
+  const [disappearOpen, setDisappearOpen] = useState(false);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
   const [jumpRequest, setJumpRequest] = useState<{ id: string; key: number } | null>(null);
   const [nudgeTrigger, setNudgeTrigger] = useState<number | null>(null);
@@ -54,7 +59,12 @@ function ChatScreen() {
     toastTimer.current = setTimeout(() => setToast(''), 2600);
   }, []);
 
-  const { ensureLoaded, incomingNudge, partner } = chat;
+  const { ensureLoaded, incomingNudge, partner, chatNotice } = chat;
+
+  // অপর জন চ্যাট মুছলে বা টাইমার বদলালে জানাই
+  useEffect(() => {
+    if (chatNotice) showToast(chatNotice.text);
+  }, [chatNotice, showToast]);
 
   /** খোঁজা বা পিন থেকে কোনো মেসেজে যাওয়া — পুরোনো হলে আগে লোড করে নেয় */
   const jumpToMessage = useCallback(
@@ -139,6 +149,8 @@ function ChatScreen() {
         onLogout={chat.logout}
         onKickSessions={chat.kickSessions}
         onOpenSearch={() => setSearchOpen(true)}
+        onOpenDisappear={() => setDisappearOpen(true)}
+        onOpenClear={() => setClearOpen(true)}
         onNudge={async () => {
           const r = await chat.sendNudge();
           if (r === 'ok') {
@@ -151,6 +163,12 @@ function ChatScreen() {
 
       <PushBanner push={push} />
       <PinBar pins={chat.pins} byId={byId} onJump={jumpToMessage} />
+      {chat.disappearSeconds > 0 && (
+        <button className="disappear-bar" onClick={() => setDisappearOpen(true)}>
+          <TimerIcon size={16} />
+          নতুন মেসেজ {disappearLabel(chat.disappearSeconds)} পর নিজে মুছে যাবে
+        </button>
+      )}
 
       {!chat.connected && <div className="conn-banner">সংযোগ বিচ্ছিন্ন। আবার যুক্ত হওয়ার চেষ্টা চলছে…</div>}
       {chat.loadError && (
@@ -171,6 +189,7 @@ function ChatScreen() {
         jumpRequest={jumpRequest}
         onLoadOlder={chat.loadOlder}
         onDelete={chat.deleteMessage}
+        onHide={chat.hideMessage}
         onRetry={chat.retry}
         onReply={startReply}
         onEdit={startEdit}
@@ -206,6 +225,18 @@ function ChatScreen() {
             setSearchOpen(false);
             jumpToMessage(m);
           }}
+        />
+      )}
+
+      {clearOpen && (
+        <ClearChatDialog partnerName={partnerName} onClear={chat.clearChat} onClose={() => setClearOpen(false)} />
+      )}
+      {disappearOpen && (
+        <DisappearDialog
+          current={chat.disappearSeconds}
+          partnerName={partnerName}
+          onSave={chat.updateDisappear}
+          onClose={() => setDisappearOpen(false)}
         />
       )}
 
