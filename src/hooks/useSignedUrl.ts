@@ -1,15 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { getSupabase, IMAGE_BUCKET } from '@/lib/supabase';
 
-const TTL_SECONDS = 60 * 60; // ১ ঘণ্টা
+/**
+ * প্রাইভেট বাকেটের ছবির জন্য সাময়িক (signed) লিংক।
+ * লিংকের মেয়াদ মাত্র ৫ মিনিট — কেউ কপি করে বাইরে দিলেও অল্প সময়ে অকেজো হয়ে যায়।
+ * মেয়াদ ফুরালে অ্যাপ নিজে থেকেই নতুন লিংক নেয়।
+ */
+const TTL_SECONDS = 5 * 60;
+/** মেয়াদ শেষের এতটা আগেই পুরোনো লিংক বাদ দিয়ে নতুন নেয় */
+const SAFETY_MS = 45_000;
+
 const cache = new Map<string, { url: string; expires: number }>();
 const inflight = new Map<string, Promise<string | null>>();
 
-async function fetchSignedUrl(path: string): Promise<string | null> {
+/** নতুন (বা এখনো তাজা) লিংক — force দিলে সবসময় নতুন */
+export async function getSignedUrl(path: string, force = false): Promise<string | null> {
   const hit = cache.get(path);
-  if (hit && hit.expires > Date.now() + 60_000) return hit.url;
+  if (!force && hit && hit.expires > Date.now() + SAFETY_MS) return hit.url;
 
   const running = inflight.get(path);
   if (running) return running;
@@ -25,17 +34,17 @@ async function fetchSignedUrl(path: string): Promise<string | null> {
   return p;
 }
 
-/** প্রাইভেট বাকেটের ছবির জন্য সাময়িক (signed) লিংক */
 export function useSignedUrl(path: string | null, fallback?: string) {
   const [url, setUrl] = useState<string | null>(() => {
     if (fallback) return fallback;
-    return path ? cache.get(path)?.url ?? null : null;
+    const hit = path ? cache.get(path) : null;
+    return hit && hit.expires > Date.now() + SAFETY_MS ? hit.url : null;
   });
 
   useEffect(() => {
     if (!path) return;
     let alive = true;
-    fetchSignedUrl(path).then((u) => {
+    getSignedUrl(path).then((u) => {
       if (alive && u) setUrl(u);
     });
     return () => {
@@ -43,5 +52,12 @@ export function useSignedUrl(path: string | null, fallback?: string) {
     };
   }, [path]);
 
-  return url ?? fallback ?? null;
+  /** ছবি লোড ব্যর্থ হলে (লিংকের মেয়াদ ফুরিয়ে গেলে) নতুন লিংক নেয় */
+  const refresh = useCallback(async () => {
+    if (!path) return;
+    const u = await getSignedUrl(path, true);
+    if (u) setUrl(u);
+  }, [path]);
+
+  return { url: url ?? fallback ?? null, refresh };
 }

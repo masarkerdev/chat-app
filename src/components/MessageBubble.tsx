@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useLayoutEffect, useRef, useState } from 'react';
-import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { getSignedUrl, useSignedUrl } from '@/hooks/useSignedUrl';
 import { formatFull, formatRemaining, formatTime, isEmojiOnly, snippet, splitLinks } from '@/lib/format';
 import { QUICK_REACTIONS, type Message } from '@/lib/types';
 import { AlertIcon, ArrowDownIcon, CopyIcon, PenIcon, PinIcon, ReplyIcon, RetryIcon, TimerIcon, TrashIcon } from './Icons';
@@ -52,10 +52,39 @@ function Status({ msg }: { msg: Message }) {
 }
 
 function BubbleImage({ msg, onOpen }: { msg: Message; onOpen: (url: string) => void }) {
-  const url = useSignedUrl(msg.image_path, msg.localUrl);
+  const { url, refresh } = useSignedUrl(msg.image_path, msg.localUrl);
+  const retried = useRef(false);
+
+  const open = async () => {
+    if (!url) return;
+    // বড় করে দেখার সময় সবসময় তাজা লিংক (পুরোনোটার মেয়াদ ফুরিয়ে থাকতে পারে)
+    if (msg.image_path && !msg.localUrl) {
+      const fresh = await getSignedUrl(msg.image_path);
+      if (fresh) return onOpen(fresh);
+    }
+    onOpen(url);
+  };
+
   return (
-    <button className="bubble-img" onClick={() => url && onOpen(url)} aria-label="ছবি বড় করে দেখুন">
-      {url ? <img src={url} alt="পাঠানো ছবি" loading="lazy" decoding="async" /> : <span className="img-skeleton" />}
+    <button className="bubble-img" onClick={open} aria-label="ছবি বড় করে দেখুন">
+      {url ? (
+        <img
+          src={url}
+          alt="পাঠানো ছবি"
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onLoad={() => (retried.current = false)}
+          onError={() => {
+            // লিংকের মেয়াদ ফুরিয়ে গেলে একবার নতুন লিংক নিয়ে আবার চেষ্টা
+            if (retried.current || msg.localUrl) return;
+            retried.current = true;
+            refresh();
+          }}
+        />
+      ) : (
+        <span className="img-skeleton" />
+      )}
       {msg.pending && <span className="img-uploading"><span className="spinner" /></span>}
     </button>
   );
