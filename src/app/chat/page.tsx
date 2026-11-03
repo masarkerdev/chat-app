@@ -50,6 +50,7 @@ function ChatScreen() {
   const [jumpRequest, setJumpRequest] = useState<{ id: string; key: number } | null>(null);
   const [nudgeTrigger, setNudgeTrigger] = useState<number | null>(null);
   const [nudgeText, setNudgeText] = useState('');
+  const [nudgeSub, setNudgeSub] = useState('');
   const [toast, setToast] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -79,9 +80,11 @@ function ChatScreen() {
   // অপর জন "মনে পড়ছে" পাঠালে হৃদয় ভাসে
   useEffect(() => {
     if (!incomingNudge) return;
-    setNudgeText(`${partner?.display_name ?? 'অপর জন'} আপনাকে মনে করছে 💞`);
+    // যিনি পাচ্ছেন তার নাম দিয়ে: "I love you মাহফুজ ❤️"
+    setNudgeText(`I love you ${chat.me?.display_name ?? ''} ❤️`.replace('  ', ' '));
+    setNudgeSub('');
     setNudgeTrigger(incomingNudge.at);
-  }, [incomingNudge, partner]);
+  }, [incomingNudge, partner, chat.me]);
 
   const pinnedIds = useMemo(() => new Set(chat.pins.map((p) => p.message_id)), [chat.pins]);
   const byId = useMemo(() => new Map(chat.messages.map((m) => [m.id, m])), [chat.messages]);
@@ -154,7 +157,8 @@ function ChatScreen() {
         onNudge={async () => {
           const r = await chat.sendNudge();
           if (r === 'ok') {
-            setNudgeText(`${partnerName}-কে জানানো হলো, আপনার মনে পড়ছে 💞`);
+            setNudgeText(`I love you ${partnerName} ❤️`);
+            setNudgeSub(`${partnerName}-কে পাঠানো হলো`);
             setNudgeTrigger(Date.now());
           } else if (r === 'wait') showToast('একটু আগেই পাঠিয়েছেন, কয়েক সেকেন্ড পর আবার চাপুন');
           else showToast('পাঠানো যায়নি, ইন্টারনেট দেখে আবার চেষ্টা করুন');
@@ -240,7 +244,7 @@ function ChatScreen() {
         />
       )}
 
-      <NudgeLayer trigger={nudgeTrigger} message={nudgeText} />
+      <NudgeLayer trigger={nudgeTrigger} message={nudgeText} sub={nudgeSub} />
       {toast && (
         <div className="toast" role="status">
           {toast}

@@ -2374,3 +2374,23 @@ button {
 .bubble-mine.is-expiring.is-edited .meta-spacer {
   width: 150px;
 }
+
+/* "I love you" */
+.nudge-toast {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.nudge-love {
+  font-family: var(--font-mark);
+  font-weight: 400;
+  font-size: 1.9rem;
+  line-height: 1.2;
+  color: var(--madder);
+}
+.nudge-sub {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+}

@@ -93,7 +93,13 @@ export async function POST(req: Request) {
     targets.map(async (t) => {
       const payload = JSON.stringify(
         isNudge
-          ? { type: 'nudge', title: t.sender_name, body: 'আপনাকে মনে করছে 💞', url: '/chat', messageId }
+          ? {
+              type: 'nudge',
+              title: t.sender_name,
+              body: t.body_text ? `I love you ${t.body_text} ❤️` : 'I love you ❤️',
+              url: '/chat',
+              messageId,
+            }
           : isReaction
           ? {
               type: 'reaction',

@@ -668,9 +668,11 @@ begin
   delete from public.nudges where created_at < now() - interval '60 days';
 
   return query
-    select s.endpoint, s.p256dh, s.auth, p.display_name, null::text, false
+    -- body_text-এ যাকে পাঠানো হচ্ছে তার নাম ("I love you <নাম>")
+    select s.endpoint, s.p256dh, s.auth, p.display_name, r.display_name, false
       from public.profiles p
       join public.push_subscriptions s on s.user_id <> auth.uid()
+      join public.profiles r on r.id = s.user_id
      where p.id = auth.uid();
 end;
 $$;

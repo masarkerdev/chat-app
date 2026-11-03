@@ -141,8 +141,8 @@ export function ChatHeader({
       </button>
       <button
         className="icon-btn on-header nudge-btn"
-        aria-label={partner ? `${partner.display_name}-কে জানান মনে পড়ছে` : 'মনে পড়ছে'}
-        title="মনে পড়ছে"
+        aria-label={partner ? `${partner.display_name}-কে I love you পাঠান` : 'I love you পাঠান'}
+        title="I love you পাঠান"
         disabled={!partner}
         onClick={onNudge}
       >

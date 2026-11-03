@@ -10,7 +10,16 @@ type Burst = { key: number; hearts: { left: number; delay: number; size: number;
  * "মনে পড়ছে" এলে পর্দায় নিচ থেকে হৃদয় ভেসে ওঠে, সাথে একটা বার্তা।
  * trigger বদলালেই একবার চলে।
  */
-export function NudgeLayer({ trigger, message }: { trigger: number | null; message: string }) {
+export function NudgeLayer({
+  trigger,
+  message,
+  sub,
+}: {
+  trigger: number | null;
+  message: string;
+  /** নিচে ছোট লেখা, যেমন কে পাঠিয়েছেন */
+  sub?: string;
+}) {
   const [burst, setBurst] = useState<Burst | null>(null);
   const [showText, setShowText] = useState(false);
 
@@ -58,7 +67,12 @@ export function NudgeLayer({ trigger, message }: { trigger: number | null; messa
           {h.emoji}
         </span>
       ))}
-      {showText && <div className="nudge-toast">{message}</div>}
+      {showText && (
+        <div className="nudge-toast">
+          <span className="nudge-love">{message}</span>
+          {sub && <span className="nudge-sub">{sub}</span>}
+        </div>
+      )}
     </div>
   );
 }
