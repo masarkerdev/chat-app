@@ -817,8 +817,9 @@ begin
   if not public.is_member() then
     raise exception 'not a member';
   end if;
+  -- Supabase-এ শর্ত (WHERE) ছাড়া DELETE চলে না (safeupdate), তাই সবসময়-সত্য শর্ত দেওয়া হলো
   return query
-    delete from public.messages returning image_path;
+    delete from public.messages where id is not null returning image_path;
 end;
 $$;
 

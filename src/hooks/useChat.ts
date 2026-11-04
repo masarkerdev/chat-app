@@ -44,7 +44,8 @@ export function explainError(err: { message?: string; code?: string } | null | u
   if (m.includes('jwt') || m.includes('token')) return 'লগইনের মেয়াদ শেষ: আবার লগইন করুন';
   if (m.includes('fetch') || m.includes('network') || m.includes('failed to')) return 'ইন্টারনেট সংযোগ নেই';
   if (m.includes('payload too large') || m.includes('exceeded')) return 'ফাইল খুব বড়';
-  return 'পাঠানো যায়নি';
+  // অচেনা এরর: সার্ভারের আসল কারণটাই দেখাই, যাতে সমস্যা ধরা যায়
+  return err.message ? `সার্ভারের উত্তর: ${err.message}` : 'সমস্যা হয়েছে, আবার চেষ্টা করুন';
 }
 
 function uuid() {
