@@ -41,6 +41,7 @@ type Props = {
   onNudge: () => void;
   onOpenDisappear: () => void;
   onOpenClear: () => void;
+  onOpenRps: () => void;
 };
 
 export function ChatHeader({
@@ -57,6 +58,7 @@ export function ChatHeader({
   onNudge,
   onOpenDisappear,
   onOpenClear,
+  onOpenRps,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
@@ -197,6 +199,15 @@ export function ChatHeader({
               }}
             >
               <DevicesIcon /> লগইন করা ডিভাইস
+            </button>
+            <button
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onOpenRps();
+              }}
+            >
+              <span className="menu-emoji" aria-hidden>✊</span> রক-পেপার-সিজর্স খেলুন
             </button>
             <button
               role="menuitem"

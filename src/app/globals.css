@@ -2394,3 +2394,274 @@ button {
   font-weight: 500;
   color: var(--muted);
 }
+
+/* ---------------------------------------------------------------- রক-পেপার-সিজর্স */
+.menu-emoji {
+  width: 20px;
+  text-align: center;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.rps-invite {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 12px;
+  border: 0;
+  border-bottom: 2px dashed var(--line);
+  background: color-mix(in oklab, var(--them) 14%, var(--paper));
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.88rem;
+  flex-shrink: 0;
+  cursor: pointer;
+  animation: rps-invite-in 0.3s ease-out;
+}
+.rps-invite b {
+  color: var(--me-ink);
+}
+.rps-invite-hands {
+  display: inline-block;
+  animation: rps-shake 0.9s ease-in-out infinite;
+}
+@keyframes rps-invite-in {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+.rps-dialog {
+  text-align: center;
+}
+.rps-score {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--me) 7%, var(--paper));
+}
+.rps-score > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.rps-score b {
+  font-size: 1.6rem;
+  line-height: 1.1;
+}
+.rps-score > div:first-child b {
+  color: var(--me-ink);
+}
+.rps-score > div:last-child b {
+  color: var(--them-ink);
+}
+.rps-score span {
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rps-score-draw {
+  padding: 0 10px;
+  border-inline: 1.5px dashed var(--line);
+}
+.rps-score-draw b {
+  font-size: 1.1rem !important;
+  color: var(--muted);
+}
+.rps-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0 2px;
+}
+.rps-status {
+  margin: 0;
+  font-weight: 550;
+}
+.rps-choices {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+.rps-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 4px 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.12s, background 0.12s;
+}
+.rps-choice:hover {
+  border-color: var(--me);
+  background: color-mix(in oklab, var(--me) 8%, var(--paper));
+}
+.rps-choice:active {
+  transform: scale(0.94);
+}
+.rps-hand {
+  display: inline-block;
+  font-size: 2.4rem;
+  line-height: 1.15;
+}
+.rps-hand.big {
+  font-size: 3.6rem;
+}
+.rps-rule {
+  font-size: 0.78rem;
+  margin: 2px 0 0;
+}
+.rps-trio {
+  display: flex;
+  gap: 14px;
+  font-size: 2.6rem;
+}
+.rps-trio span {
+  animation: rps-bob 1.6s ease-in-out infinite;
+}
+.rps-trio span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.rps-trio span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+.rps-wait-hand {
+  animation: rps-bob 1.6s ease-in-out infinite;
+}
+.rps-dots::after {
+  content: '';
+  animation: rps-dots 1.4s steps(4) infinite;
+}
+.rps-faceoff {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+}
+.rps-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.rps-side .rps-hand {
+  font-size: 3.4rem;
+}
+.rps-faceoff:not(.is-revealed) .rps-hand.me {
+  animation: rps-pump 0.4s ease-in-out 3;
+}
+.rps-faceoff:not(.is-revealed) .rps-hand.them {
+  animation: rps-pump 0.4s ease-in-out 3;
+  transform: scaleX(-1);
+}
+.rps-faceoff.is-revealed .rps-hand {
+  animation: pop 0.25s ease-out;
+}
+.rps-faceoff.is-revealed .rps-hand.them {
+  transform: scaleX(-1);
+}
+.rps-label {
+  font-size: 0.82rem;
+  color: var(--muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rps-vs {
+  font-family: 'Galada', cursive;
+  font-size: 1.1rem;
+  color: var(--muted);
+}
+.rps-verdict {
+  margin: 4px 0 0;
+  font-size: 1.25rem;
+  font-weight: 650;
+  min-height: 1.6em;
+}
+.rps-verdict.is-win {
+  color: var(--me-ink);
+  animation: pop 0.3s ease-out;
+}
+.rps-verdict.is-lose {
+  color: var(--them-ink);
+  animation: pop 0.3s ease-out;
+}
+.rps-verdict.is-draw {
+  animation: pop 0.3s ease-out;
+}
+.rps-again {
+  min-width: 160px;
+}
+@keyframes rps-pump {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -14px;
+  }
+}
+@keyframes rps-bob {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -6px;
+  }
+}
+@keyframes rps-shake {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  25% {
+    rotate: -8deg;
+  }
+  75% {
+    rotate: 8deg;
+  }
+}
+@keyframes rps-dots {
+  0% {
+    content: '';
+  }
+  25% {
+    content: '.';
+  }
+  50% {
+    content: '..';
+  }
+  75% {
+    content: '...';
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rps-invite-hands,
+  .rps-trio span,
+  .rps-wait-hand,
+  .rps-faceoff .rps-hand {
+    animation: none !important;
+  }
+}

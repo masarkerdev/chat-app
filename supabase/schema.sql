@@ -856,3 +856,178 @@ begin
     alter publication supabase_realtime add table public.chat_settings;
   end if;
 end $$;
+
+-- =====================================================================
+-- ১৪. খেলা: রক-পেপার-সিজর্স (পাথর-কাগজ-কাঁচি)
+--     দুজনের বাছাই শেষ না হওয়া পর্যন্ত কেউ অপর জনেরটা দেখতে পারে না —
+--     ডাটাবেস নিজেই লুকিয়ে রাখে। সব লেখা হয় শুধু নিচের ফাংশন দিয়ে।
+-- =====================================================================
+create table if not exists public.rps_rounds (
+  id           uuid primary key default gen_random_uuid(),
+  started_by   uuid not null references public.profiles(id) on delete cascade,
+  created_at   timestamptz not null default now(),
+  picked_count int not null default 0,
+  done_at      timestamptz,
+  pushed_at    timestamptz
+);
+create index if not exists rps_rounds_time_idx on public.rps_rounds (created_at desc);
+alter table public.rps_rounds enable row level security;
+
+create table if not exists public.rps_picks (
+  round_id  uuid not null references public.rps_rounds(id) on delete cascade,
+  user_id   uuid not null references public.profiles(id) on delete cascade,
+  choice    text not null check (choice in ('rock', 'paper', 'scissors')),
+  picked_at timestamptz not null default now(),
+  primary key (round_id, user_id)
+);
+alter table public.rps_picks enable row level security;
+
+drop policy if exists "members read rounds" on public.rps_rounds;
+create policy "members read rounds" on public.rps_rounds
+  for select to authenticated using (public.is_member());
+
+-- নিজের বাছাই সবসময় দেখা যায়; অপর জনেরটা শুধু খেলা শেষ হলে
+drop policy if exists "read own or finished picks" on public.rps_picks;
+create policy "read own or finished picks" on public.rps_picks
+  for select to authenticated
+  using (
+    public.is_member()
+    and (
+      user_id = auth.uid()
+      or exists (select 1 from public.rps_rounds r where r.id = round_id and r.done_at is not null)
+    )
+  );
+
+-- খেলা শুরু: চলমান (২৪ ঘণ্টার মধ্যের, শেষ না হওয়া) খেলা থাকলে সেটাই, না হলে নতুন
+create or replace function public.rps_start()
+returns table (round_id uuid, created boolean)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+begin
+  if not public.is_member() then
+    raise exception 'not a member';
+  end if;
+  -- পুরোনো, অসমাপ্ত খেলা বাতিল
+  delete from public.rps_rounds where done_at is null and created_at < now() - interval '24 hours';
+
+  select r.id into v_id from public.rps_rounds r
+   where r.done_at is null
+   order by r.created_at desc limit 1;
+  if v_id is not null then
+    return query select v_id, false;
+    return;
+  end if;
+
+  insert into public.rps_rounds (started_by) values (auth.uid()) returning id into v_id;
+  -- অনেক পুরোনো খেলা জমে না থাকুক (সর্বশেষ ৫০০টি রাখি)
+  delete from public.rps_rounds
+   where id in (select id from public.rps_rounds order by created_at desc offset 500);
+  return query select v_id, true;
+end;
+$$;
+
+-- বাছাই দেওয়া (একবারই; বদলানো যায় না)
+create or replace function public.rps_pick(p_round_id uuid, p_choice text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_round public.rps_rounds;
+  v_count int;
+begin
+  if not public.is_member() then
+    raise exception 'not a member';
+  end if;
+  -- একসাথে দুজন বাছলেও গোলমাল যেন না হয়
+  select * into v_round from public.rps_rounds where id = p_round_id for update;
+  if v_round.id is null or v_round.done_at is not null then
+    raise exception 'এই খেলা আর চলছে না';
+  end if;
+
+  insert into public.rps_picks (round_id, user_id, choice)
+  values (p_round_id, auth.uid(), p_choice)
+  on conflict do nothing;
+
+  select count(*) into v_count from public.rps_picks where round_id = p_round_id;
+  update public.rps_rounds
+     set picked_count = v_count,
+         done_at = case when v_count >= 2 then now() else null end
+   where id = p_round_id;
+end;
+$$;
+
+-- মোট হিসাব: আমার জয়, অপর জনের জয়, ড্র
+create or replace function public.rps_score()
+returns table (my_wins int, their_wins int, draws int)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with games as (
+    select (select choice from public.rps_picks p where p.round_id = r.id and p.user_id = auth.uid())  as mine,
+           (select choice from public.rps_picks p where p.round_id = r.id and p.user_id <> auth.uid()) as theirs
+      from public.rps_rounds r
+     where r.done_at is not null and public.is_member()
+  )
+  select
+    count(*) filter (where (mine, theirs) in (('rock','scissors'), ('paper','rock'), ('scissors','paper'))),
+    count(*) filter (where (theirs, mine) in (('rock','scissors'), ('paper','rock'), ('scissors','paper'))),
+    count(*) filter (where mine = theirs)
+  from games
+  where mine is not null and theirs is not null;
+$$;
+
+-- খেলতে ডাকলে অপর জনের ফোনে নোটিফিকেশন (একবারই)
+create or replace function public.claim_rps_push(p_round_id uuid)
+returns table (
+  sub_endpoint text,
+  sub_p256dh   text,
+  sub_auth     text,
+  sender_name  text,
+  body_text    text,
+  has_image    boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.rps_rounds
+     set pushed_at = now()
+   where id = p_round_id and started_by = auth.uid() and pushed_at is null and done_at is null;
+  if not found then
+    return;
+  end if;
+  return query
+    select s.endpoint, s.p256dh, s.auth, p.display_name, null::text, false
+      from public.profiles p
+      join public.push_subscriptions s on s.user_id <> auth.uid()
+     where p.id = auth.uid();
+end;
+$$;
+
+revoke execute on function public.rps_start()                from public, anon;
+revoke execute on function public.rps_pick(uuid, text)       from public, anon;
+revoke execute on function public.rps_score()                from public, anon;
+revoke execute on function public.claim_rps_push(uuid)       from public, anon;
+grant  execute on function public.rps_start()                to authenticated;
+grant  execute on function public.rps_pick(uuid, text)       to authenticated;
+grant  execute on function public.rps_score()                to authenticated;
+grant  execute on function public.claim_rps_push(uuid)       to authenticated;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'rps_rounds'
+  ) then
+    alter publication supabase_realtime add table public.rps_rounds;
+  end if;
+end $$;

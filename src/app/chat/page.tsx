@@ -15,6 +15,8 @@ import { NudgeLayer } from '@/components/NudgeLayer';
 import { ClearChatDialog } from '@/components/ClearChatDialog';
 import { DisappearDialog } from '@/components/DisappearDialog';
 import { TimerIcon } from '@/components/Icons';
+import { RpsDialog } from '@/components/RpsDialog';
+import { useRps } from '@/hooks/useRps';
 import { disappearLabel, snippet } from '@/lib/format';
 import type { Message } from '@/lib/types';
 
@@ -46,6 +48,7 @@ function ChatScreen() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const [disappearOpen, setDisappearOpen] = useState(false);
+  const [rpsOpen, setRpsOpen] = useState(false);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
   const [jumpRequest, setJumpRequest] = useState<{ id: string; key: number } | null>(null);
   const [nudgeTrigger, setNudgeTrigger] = useState<number | null>(null);
@@ -61,6 +64,7 @@ function ChatScreen() {
   }, []);
 
   const { ensureLoaded, incomingNudge, partner, chatNotice } = chat;
+  const rps = useRps(chat.me?.id ?? null);
 
   // অপর জন চ্যাট মুছলে বা টাইমার বদলালে জানাই
   useEffect(() => {
@@ -154,6 +158,7 @@ function ChatScreen() {
         onOpenSearch={() => setSearchOpen(true)}
         onOpenDisappear={() => setDisappearOpen(true)}
         onOpenClear={() => setClearOpen(true)}
+        onOpenRps={() => setRpsOpen(true)}
         onNudge={async () => {
           const r = await chat.sendNudge();
           if (r === 'ok') {
@@ -174,6 +179,16 @@ function ChatScreen() {
         </button>
       )}
 
+      {rps.pendingInvite && !rpsOpen && (
+        <button className="rps-invite" onClick={() => setRpsOpen(true)}>
+          <span className="rps-invite-hands" aria-hidden>
+            ✊✋✌️
+          </span>
+          <span>
+            {partnerName} রক-পেপার-সিজর্স খেলতে ডেকেছেন — <b>খেলুন</b>
+          </span>
+        </button>
+      )}
       {!chat.connected && <div className="conn-banner">সংযোগ বিচ্ছিন্ন। আবার যুক্ত হওয়ার চেষ্টা চলছে…</div>}
       {chat.loadError && (
         <div className="conn-banner" role="alert">
@@ -241,6 +256,20 @@ function ChatScreen() {
           partnerName={partnerName}
           onSave={chat.updateDisappear}
           onClose={() => setDisappearOpen(false)}
+        />
+      )}
+
+      {rpsOpen && (
+        <RpsDialog
+          meId={me.id}
+          partnerName={partnerName}
+          round={rps.round}
+          myPick={rps.myPick}
+          result={rps.result}
+          score={rps.score}
+          onStart={rps.start}
+          onPick={rps.pick}
+          onClose={() => setRpsOpen(false)}
         />
       )}
 

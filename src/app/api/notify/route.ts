@@ -80,7 +80,10 @@ export async function POST(req: Request) {
   // kind = 'reaction': অপর জনের মেসেজে দেওয়া রিঅ্যাকশন; 'nudge': "মনে পড়ছে"
   const isReaction = kind === 'reaction';
   const isNudge = kind === 'nudge';
-  const { data, error } = isNudge
+  const isRps = kind === 'rps';
+  const { data, error } = isRps
+    ? await sb.rpc('claim_rps_push', { p_round_id: messageId })
+    : isNudge
     ? await sb.rpc('claim_nudge_push', { p_nudge_id: messageId })
     : await sb.rpc(isReaction ? 'claim_reaction_push' : 'claim_push', { p_message_id: messageId });
   if (error) return json(403, { error: error.message });
@@ -92,7 +95,9 @@ export async function POST(req: Request) {
   await Promise.all(
     targets.map(async (t) => {
       const payload = JSON.stringify(
-        isNudge
+        isRps
+          ? { type: 'rps', title: t.sender_name, body: 'রক-পেপার-সিজর্স খেলতে ডেকেছেন ✊✋✌️', url: '/chat', messageId }
+          : isNudge
           ? {
               type: 'nudge',
               title: t.sender_name,
