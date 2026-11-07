@@ -1,5 +1,17 @@
 const LOCALE = 'bn-BD';
 
+/**
+ * ফোনের ঘড়ি কয়েক মিনিট আগে-পিছে থাকলেও "কত আগে" যেন ঠিক দেখায় —
+ * সার্ভারের সময়ের সাথে এই ডিভাইসের পার্থক্য (মিলিসেকেন্ড)
+ */
+let serverOffset = 0;
+export function setServerOffset(ms: number) {
+  if (Number.isFinite(ms)) serverOffset = ms;
+}
+export function serverNow() {
+  return Date.now() + serverOffset;
+}
+
 function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
@@ -27,7 +39,7 @@ export function dayKey(iso: string) {
 export function formatLastSeen(iso: string | null) {
   if (!iso) return '';
   const d = new Date(iso);
-  const minutes = Math.floor((Date.now() - d.getTime()) / 60_000);
+  const minutes = Math.floor((serverNow() - d.getTime()) / 60_000);
   if (minutes < 1) return 'এইমাত্র সক্রিয় ছিলেন';
   if (minutes < 60) return `${minutes.toLocaleString(LOCALE)} মিনিট আগে সক্রিয় ছিলেন`;
   const day = formatDayLabel(iso);

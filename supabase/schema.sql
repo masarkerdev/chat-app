@@ -1031,3 +1031,39 @@ begin
     alter publication supabase_realtime add table public.rps_rounds;
   end if;
 end $$;
+
+-- =====================================================================
+-- 15. "সর্বশেষ সক্রিয়" — সার্ভারের ঘড়ি দিয়ে
+--     ফোনের ঘড়ি আগে-পিছে থাকলে last_seen ভুল হতো; এখন সবসময় সার্ভারের now()।
+-- =====================================================================
+create or replace function public.touch_last_seen()
+returns timestamptz
+language sql
+security definer
+set search_path = public
+as $$
+  update public.profiles set last_seen = now()
+   where id = auth.uid()
+  returning last_seen;
+$$;
+
+-- পুরোনো অ্যাপ সরাসরি last_seen লিখলেও সার্ভারের সময়ই বসবে
+create or replace function public.force_server_last_seen()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.last_seen is distinct from old.last_seen then
+    new.last_seen := now();
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_server_last_seen on public.profiles;
+create trigger profiles_server_last_seen
+  before update on public.profiles
+  for each row execute function public.force_server_last_seen();
+
+revoke all on function public.touch_last_seen() from public, anon;
+grant execute on function public.touch_last_seen() to authenticated;

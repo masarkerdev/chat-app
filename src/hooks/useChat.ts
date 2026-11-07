@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { getSupabase, IMAGE_BUCKET, PAGE_SIZE } from '@/lib/supabase';
+import { getSupabase, IMAGE_BUCKET, PAGE_SIZE, supabaseAnonKey, supabaseBase } from '@/lib/supabase';
 import { compressImage, extFor } from '@/lib/image';
 import { clearNotifications, disablePush, isPushActive, notifyPartner, syncPush, unsubscribeLocal } from '@/lib/push';
 import { sessionIdFromToken } from '@/lib/devices';
-import { disappearLabel } from '@/lib/format';
+import { disappearLabel, setServerOffset } from '@/lib/format';
 import { clearLock, isLocked } from '@/lib/applock';
 import type { Message, Pin, Profile, Reaction } from '@/lib/types';
 
@@ -145,14 +145,32 @@ export function useChat() {
     }, 350);
   }, []);
 
+  const tokenRef = useRef<string | null>(null);
+  /**
+   * "সর্বশেষ সক্রিয়" সময় সার্ভারের ঘড়ি দিয়ে লেখা হয় (ফোনের ঘড়ি ভুল থাকলেও ঠিক থাকে)।
+   * keepalive: অ্যাপ বন্ধ/ব্যাকগ্রাউন্ডে যাওয়ার মুহূর্তেও রিকোয়েস্টটা শেষ হয়।
+   */
   const touchLastSeen = useCallback(() => {
     const uid = meRef.current?.id;
-    if (!uid) return;
-    getSupabase()
-      .from('profiles')
-      .update({ last_seen: new Date().toISOString() })
-      .eq('id', uid)
-      .then(() => {});
+    const token = tokenRef.current;
+    if (!uid || !token) return;
+    const t0 = Date.now();
+    fetch(`${supabaseBase()}/rest/v1/rpc/touch_last_seen`, {
+      method: 'POST',
+      keepalive: true,
+      headers: { apikey: supabaseAnonKey(), Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: '{}',
+    })
+      .then(async (r) => {
+        if (r.ok) {
+          const ts = await r.json().catch(() => null);
+          if (typeof ts === 'string') setServerOffset(new Date(ts).getTime() - (t0 + Date.now()) / 2);
+        } else if (r.status === 404) {
+          // schema.sql নতুন করে চালানো না হলে পুরোনো পদ্ধতি
+          getSupabase().from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', uid).then(() => {});
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const notify = useCallback(async (m: Message) => {
@@ -235,19 +253,42 @@ export function useChat() {
     let heartbeat: ReturnType<typeof setInterval> | null = null;
     let everSubscribed = false;
 
+    // সক্রিয় = অ্যাপ সামনে খোলা এবং গত ৫ মিনিটে কিছু ছোঁয়া/টাইপ হয়েছে।
+    // শুধু খোলা ফেলে রাখলে (যেমন কম্পিউটারে ট্যাব খোলা) ৫ মিনিট পর "অনলাইন" থেকে সরে যায়।
+    const IDLE_MS = 5 * 60_000;
+    let active = false;
+    let lastInput = Date.now();
+    let partnerWasOnline = false;
+    const goActive = () => {
+      if (active || !room) return;
+      active = true;
+      room.track({ online_at: new Date().toISOString() });
+      touchLastSeen();
+    };
+    const goAway = () => {
+      if (!active) return;
+      active = false;
+      room?.untrack();
+      touchLastSeen();
+    };
+    const onInput = () => {
+      lastInput = Date.now();
+      if (!active && document.visibilityState === 'visible') goActive();
+    };
+    const INPUT_EVENTS = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
+
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
         unreadHidden.current = 0;
         updateTitle();
         clearNotifications();
-        room?.track({ online_at: new Date().toISOString() });
+        lastInput = Date.now();
+        goActive();
         loadLatest();
         markSeen();
-        touchLastSeen();
         validateSession();
       } else {
-        room?.untrack();
-        touchLastSeen();
+        goAway();
       }
     };
 
@@ -261,6 +302,7 @@ export function useChat() {
         return;
       }
       const uid = session.user.id;
+      tokenRef.current = session.access_token;
       mySession.current = sessionIdFromToken(session.access_token);
       validateSession();
 
@@ -380,7 +422,24 @@ export function useChat() {
         .on('presence', { event: 'sync' }, () => {
           const state = room!.presenceState();
           const pid = partnerRef.current?.id;
-          setPartnerOnline(!!pid && (state[pid]?.length ?? 0) > 0);
+          const online = !!pid && (state[pid]?.length ?? 0) > 0;
+          setPartnerOnline(online);
+          // অপর জন এইমাত্র অফলাইন হলেন — তার সর্বশেষ সময় সার্ভার থেকে নতুন করে আনি
+          if (partnerWasOnline && !online && pid) {
+            setTimeout(() => {
+              sb.from('profiles')
+                .select('id, display_name, avatar_url, last_seen')
+                .eq('id', pid)
+                .single()
+                .then(({ data }) => {
+                  if (!data || partnerRef.current?.id !== pid) return;
+                  const next = { ...partnerRef.current, ...(data as Profile) };
+                  partnerRef.current = next;
+                  setPartner(next);
+                });
+            }, 1500);
+          }
+          partnerWasOnline = online;
         })
         .on('broadcast', { event: 'chat-cleared' }, ({ payload }) => {
           // অপর জন দুজনের কাছ থেকেই পুরো চ্যাট মুছেছেন
@@ -407,17 +466,22 @@ export function useChat() {
         })
         .subscribe(async (s) => {
           if (s === 'SUBSCRIBED' && document.visibilityState === 'visible') {
-            await room!.track({ online_at: new Date().toISOString() });
+            // নতুন করে সংযোগ হলেও presence আবার জানাতে হয়
+            active = false;
+            goActive();
           }
         });
 
       touchLastSeen();
       heartbeat = setInterval(() => {
-        if (document.visibilityState === 'visible') touchLastSeen();
+        if (!active) return;
+        if (document.visibilityState !== 'visible' || Date.now() - lastInput > IDLE_MS) goAway();
+        else touchLastSeen();
       }, 60_000);
 
       document.addEventListener('visibilitychange', onVisibility);
-      window.addEventListener('pagehide', touchLastSeen);
+      window.addEventListener('pagehide', goAway);
+      INPUT_EVENTS.forEach((e) => window.addEventListener(e, onInput, { passive: true }));
       window.addEventListener('dujone-unlocked', markSeen);
     })();
 
@@ -432,6 +496,7 @@ export function useChat() {
           router.replace('/login?reason=revoked');
         } else router.replace('/login');
       }
+      if (session) tokenRef.current = session.access_token;
       if (event === 'TOKEN_REFRESHED' && session) sb.realtime.setAuth(session.access_token);
     });
 
@@ -439,7 +504,8 @@ export function useChat() {
       cancelled = true;
       authSub.subscription.unsubscribe();
       document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('pagehide', touchLastSeen);
+      window.removeEventListener('pagehide', goAway);
+      INPUT_EVENTS.forEach((e) => window.removeEventListener(e, onInput));
       window.removeEventListener('dujone-unlocked', markSeen);
       if (heartbeat) clearInterval(heartbeat);
       if (dbChannel) sb.removeChannel(dbChannel);
