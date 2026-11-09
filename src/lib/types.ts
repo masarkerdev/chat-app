@@ -14,7 +14,14 @@ export type Message = {
   id: string;
   sender_id: string;
   content: string | null;
+  /** ছবি, ফাইল বা ভয়েসের স্টোরেজ পথ */
   image_path: string | null;
+  /** 'image' | 'file' | 'voice' (পুরোনো ছবিতে খালি থাকতে পারে) */
+  media_kind?: string | null;
+  file_name?: string | null;
+  file_size?: number | null;
+  mime_type?: string | null;
+  duration_ms?: number | null;
   created_at: string;
   seen_at: string | null;
   /** লেখা পরে বদলানো হলে কখন */

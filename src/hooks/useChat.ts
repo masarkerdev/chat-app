@@ -7,7 +7,8 @@ import { getSupabase, IMAGE_BUCKET, PAGE_SIZE, supabaseAnonKey, supabaseBase } f
 import { compressImage, extFor } from '@/lib/image';
 import { clearNotifications, disablePush, isPushActive, notifyPartner, syncPush, unsubscribeLocal } from '@/lib/push';
 import { sessionIdFromToken } from '@/lib/devices';
-import { disappearLabel, setServerOffset } from '@/lib/format';
+import { disappearLabel, setServerOffset, snippet } from '@/lib/format';
+import { baseMime, cleanFileName, MAX_FILE_BYTES, MAX_VOICE_MS, voiceExt } from '@/lib/media';
 import { clearLock, isLocked } from '@/lib/applock';
 import type { Message, Pin, Profile, Reaction } from '@/lib/types';
 
@@ -16,7 +17,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const BASE_TITLE = 'Dujone';
 /** মেসেজের সাথে রিঅ্যাকশনও একসাথে আনে */
 const MSG_COLS =
-  'id, sender_id, content, image_path, created_at, seen_at, edited_at, expires_at, reply_to, reactions:message_reactions(user_id, emoji)';
+  'id, sender_id, content, image_path, media_kind, file_name, file_size, mime_type, duration_ms, created_at, seen_at, edited_at, expires_at, reply_to, reactions:message_reactions(user_id, emoji)';
 
 /** ছবিগুলো স্টোরেজ থেকে মোছা (১০০টি করে) */
 async function removeImages(paths: (string | null)[]) {
@@ -180,7 +181,7 @@ export function useChat() {
     if (isPushActive()) return;
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     const title = partnerRef.current?.display_name ?? 'নতুন মেসেজ';
-    const body = m.content?.trim() ? m.content : '📷 একটি ছবি পাঠিয়েছেন';
+    const body = snippet(m, 140) || 'নতুন মেসেজ';
     try {
       const reg = await navigator.serviceWorker?.getRegistration();
       if (reg) {
@@ -541,8 +542,15 @@ export function useChat() {
     setState({ pending: true, failed: false });
 
     if (msg.image_path && msg.localFile) {
-      const { error: upErr } = await sb.storage.from(IMAGE_BUCKET).upload(msg.image_path, msg.localFile, {
-        contentType: msg.localFile.type || 'image/jpeg',
+      // ফাইল সবসময় "octet-stream" হিসেবে রাখা হয় — ব্রাউজারে খুলে চলবে না, শুধু নামানো যাবে
+      const contentType =
+        msg.media_kind === 'file'
+          ? 'application/octet-stream'
+          : baseMime(msg.localFile.type || (msg.media_kind === 'voice' ? 'audio/webm' : 'image/jpeg'));
+      // Blob পাঠালে Supabase ফাইলের নিজের ধরন ধরে, contentType নয় — তাই ধরনটা Blob-এই বসাই
+      const body = new Blob([msg.localFile], { type: contentType });
+      const { error: upErr } = await sb.storage.from(IMAGE_BUCKET).upload(msg.image_path, body, {
+        contentType,
         cacheControl: '31536000',
         upsert: true,
       });
@@ -558,6 +566,11 @@ export function useChat() {
       sender_id: msg.sender_id,
       content: msg.content,
       image_path: msg.image_path,
+      media_kind: msg.image_path ? (msg.media_kind ?? 'image') : null,
+      file_name: msg.file_name ?? null,
+      file_size: msg.file_size ?? null,
+      mime_type: msg.mime_type ?? null,
+      duration_ms: msg.duration_ms ?? null,
       reply_to: msg.reply_to ?? null,
     });
     // ২৩৫০৫ = আগেই পৌঁছে গেছে (আবার পাঠানোর সময়), সেটা সফল ধরি
@@ -613,6 +626,71 @@ export function useChat() {
         sender_id: uid,
         content: null,
         image_path: `${uid}/${id}.${extFor(blob)}`,
+        media_kind: 'image',
+        created_at: new Date().toISOString(),
+        seen_at: null,
+        reply_to: replyTo ?? null,
+        reactions: [],
+        pending: true,
+        localUrl: URL.createObjectURL(blob),
+        localFile: blob,
+      };
+      setMessages((l) => [...l, msg]);
+      deliver(msg);
+      return null;
+    },
+    [deliver]
+  );
+
+  /** যেকোনো ফাইল (PDF, Word, ZIP…) — সর্বোচ্চ ২৫ MB */
+  const sendFile = useCallback(
+    async (file: File, replyTo?: string | null): Promise<string | null> => {
+      const uid = meRef.current?.id;
+      if (!uid) return null;
+      if (file.size === 0) return `"${file.name}" ফাইলটি খালি।`;
+      if (file.size > MAX_FILE_BYTES) return `"${file.name}" ২৫ MB-এর বেশি বড়, পাঠানো যাবে না।`;
+      const id = uuid();
+      const msg: Message = {
+        id,
+        sender_id: uid,
+        content: null,
+        image_path: `${uid}/${id}.bin`,
+        media_kind: 'file',
+        file_name: cleanFileName(file.name),
+        file_size: file.size,
+        mime_type: (file.type || 'application/octet-stream').slice(0, 120),
+        created_at: new Date().toISOString(),
+        seen_at: null,
+        reply_to: replyTo ?? null,
+        reactions: [],
+        pending: true,
+        localFile: file,
+      };
+      setMessages((l) => [...l, msg]);
+      deliver(msg);
+      return null;
+    },
+    [deliver]
+  );
+
+  /** ভয়েস মেসেজ — রেকর্ড শেষে */
+  const sendVoice = useCallback(
+    (blob: Blob, durationMs: number, replyTo?: string | null): string | null => {
+      const uid = meRef.current?.id;
+      if (!uid) return null;
+      if (blob.size === 0 || durationMs < 700) return 'রেকর্ড খুব ছোট হয়েছে, একটু বেশি সময় ধরে বলুন।';
+      if (blob.size > MAX_FILE_BYTES) return 'রেকর্ড অনেক বড় হয়ে গেছে।';
+      const id = uuid();
+      const type = baseMime(blob.type || 'audio/webm');
+      const msg: Message = {
+        id,
+        sender_id: uid,
+        content: null,
+        image_path: `${uid}/${id}.${voiceExt(type)}`,
+        media_kind: 'voice',
+        mime_type: type,
+        file_size: blob.size,
+        duration_ms: Math.min(Math.round(durationMs), MAX_VOICE_MS),
         created_at: new Date().toISOString(),
         seen_at: null,
         reply_to: replyTo ?? null,
@@ -910,6 +988,8 @@ export function useChat() {
     connected,
     sendText,
     sendImage,
+    sendFile,
+    sendVoice,
     retry,
     deleteMessage,
     react,

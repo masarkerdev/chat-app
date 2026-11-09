@@ -1,7 +1,18 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { CloseIcon, ImageIcon, PenIcon, ReplyIcon, SendIcon } from './Icons';
+import {
+  CloseIcon,
+  FileIcon,
+  ImageIcon,
+  MicIcon,
+  PaperclipIcon,
+  PenIcon,
+  ReplyIcon,
+  SendIcon,
+  TrashIcon,
+} from './Icons';
+import { formatDuration, MAX_VOICE_MS, pickVoiceMime } from '@/lib/media';
 
 export type ReplyDraft = {
   /** যার মেসেজের উত্তর দেওয়া হচ্ছে */
@@ -19,18 +30,50 @@ type Props = {
   onCancelEdit?: () => void;
   onSend: (text: string) => void;
   onImage: (file: File) => Promise<string | null>;
+  onFile: (file: File) => Promise<string | null>;
+  onVoice: (blob: Blob, durationMs: number) => string | null;
   onTyping: (typing: boolean) => void;
 };
 
 const MAX_LEN = 4000;
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'];
 
-export function Composer({ disabled, reply, onCancelReply, editing, onCancelEdit, onSend, onImage, onTyping }: Props) {
+type Rec = {
+  recorder: MediaRecorder;
+  stream: MediaStream;
+  chunks: Blob[];
+  startedAt: number;
+  /** থামানোর পর পাঠাবে নাকি ফেলে দেবে */
+  send: boolean;
+};
+
+export function Composer({
+  disabled,
+  reply,
+  onCancelReply,
+  editing,
+  onCancelEdit,
+  onSend,
+  onImage,
+  onFile,
+  onVoice,
+  onTyping,
+}: Props) {
   const [text, setText] = useState('');
   const [error, setError] = useState('');
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recMs, setRecMs] = useState(0);
+  const [level, setLevel] = useState(0);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const imageRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const attachRef = useRef<HTMLDivElement>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTouch = useRef(false);
+  const rec = useRef<Rec | null>(null);
+  const recTick = useRef<number | null>(null);
+  const audioCtx = useRef<AudioContext | null>(null);
 
   useEffect(() => {
     isTouch.current = window.matchMedia('(pointer: coarse)').matches;
@@ -70,9 +113,27 @@ export function Composer({ disabled, reply, onCancelReply, editing, onCancelEdit
 
   useEffect(() => {
     if (!error) return;
-    const t = setTimeout(() => setError(''), 4000);
+    const t = setTimeout(() => setError(''), 4500);
     return () => clearTimeout(t);
   }, [error]);
+
+  // সংযুক্তির মেনু: বাইরে চাপলে বা Esc দিলে বন্ধ
+  useEffect(() => {
+    if (!attachOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!attachRef.current?.contains(e.target as Node)) setAttachOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setAttachOpen(false);
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [attachOpen]);
+
+  // অন্য পেইজে গেলে বা কম্পোনেন্ট সরে গেলে মাইক বন্ধ
+  useEffect(() => () => stopRecording(false), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stopTyping = () => {
     if (idleTimer.current) clearTimeout(idleTimer.current);
@@ -104,14 +165,144 @@ export function Composer({ disabled, reply, onCancelReply, editing, onCancelEdit
     idleTimer.current = setTimeout(() => onTyping(false), 3000);
   };
 
-  const pickFiles = async (files: FileList | null) => {
+  /** ছবি বাছলে ছবি হিসেবে (ছোট করে), অন্য সব ফাইল হিসেবে */
+  const pickFiles = async (files: FileList | null, as: 'auto' | 'file') => {
     if (!files) return;
     for (const f of Array.from(files).slice(0, 10)) {
-      const err = await onImage(f);
+      const asImage = as === 'auto' && IMAGE_TYPES.includes(f.type);
+      const err = asImage ? await onImage(f) : await onFile(f);
       if (err) setError(err);
     }
+    if (imageRef.current) imageRef.current.value = '';
     if (fileRef.current) fileRef.current.value = '';
   };
+
+  // ---------------------------------------------------------------- ভয়েস
+
+  const cleanupRecording = () => {
+    if (recTick.current) cancelAnimationFrame(recTick.current);
+    recTick.current = null;
+    audioCtx.current?.close().catch(() => {});
+    audioCtx.current = null;
+    rec.current?.stream.getTracks().forEach((t) => t.stop());
+    rec.current = null;
+    setRecording(false);
+    setRecMs(0);
+    setLevel(0);
+  };
+
+  function stopRecording(send: boolean) {
+    const r = rec.current;
+    if (!r) return;
+    r.send = send;
+    if (r.recorder.state !== 'inactive') r.recorder.stop();
+    else cleanupRecording();
+  }
+
+  const startRecording = async () => {
+    if (disabled || rec.current) return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setError('এই ব্রাউজারে ভয়েস রেকর্ড করা যায় না।');
+      return;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+    } catch (e) {
+      const name = (e as DOMException).name;
+      setError(
+        name === 'NotAllowedError' || name === 'SecurityError'
+          ? 'মাইক্রোফোনের অনুমতি দেওয়া হয়নি। ব্রাউজারের সাইট সেটিংস থেকে Microphone → Allow করুন।'
+          : name === 'NotFoundError'
+          ? 'কোনো মাইক্রোফোন পাওয়া যায়নি।'
+          : 'মাইক্রোফোন চালু করা যায়নি।'
+      );
+      return;
+    }
+
+    const mimeType = pickVoiceMime();
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(stream, mimeType ? { mimeType, audioBitsPerSecond: 32000 } : undefined);
+    } catch {
+      stream.getTracks().forEach((t) => t.stop());
+      setError('ভয়েস রেকর্ড শুরু করা যায়নি।');
+      return;
+    }
+
+    const r: Rec = { recorder, stream, chunks: [], startedAt: performance.now(), send: false };
+    rec.current = r;
+    recorder.ondataavailable = (e) => e.data.size && r.chunks.push(e.data);
+    recorder.onstop = () => {
+      const ms = performance.now() - r.startedAt;
+      const blob = new Blob(r.chunks, { type: recorder.mimeType || mimeType || 'audio/webm' });
+      cleanupRecording();
+      if (r.send) {
+        const err = onVoice(blob, ms);
+        if (err) setError(err);
+      }
+    };
+    recorder.start(1000);
+    setRecording(true);
+    stopTyping();
+
+    // কথার জোর দেখানোর জন্য ছোট্ট মিটার (না চললেও রেকর্ড হবে)
+    let analyser: AnalyserNode | null = null;
+    try {
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new Ctx();
+      audioCtx.current = ctx;
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      ctx.createMediaStreamSource(stream).connect(analyser);
+    } catch {
+      analyser = null;
+    }
+    const buf = analyser ? new Uint8Array(analyser.fftSize) : null;
+    const tick = () => {
+      if (rec.current !== r) return;
+      const ms = performance.now() - r.startedAt;
+      setRecMs(ms);
+      if (analyser && buf) {
+        analyser.getByteTimeDomainData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) sum += ((buf[i] - 128) / 128) ** 2;
+        setLevel(Math.min(1, Math.sqrt(sum / buf.length) * 4));
+      }
+      if (ms >= MAX_VOICE_MS) {
+        stopRecording(true);
+        return;
+      }
+      recTick.current = requestAnimationFrame(tick);
+    };
+    recTick.current = requestAnimationFrame(tick);
+  };
+
+  const showMic = !text.trim() && !editing;
+
+  if (recording) {
+    return (
+      <div className="composer composer-recording" role="group" aria-label="ভয়েস রেকর্ড হচ্ছে">
+        {error && <div className="composer-error" role="alert">{error}</div>}
+        <button type="button" className="icon-btn rec-cancel" aria-label="রেকর্ড বাতিল" onClick={() => stopRecording(false)}>
+          <TrashIcon size={21} />
+        </button>
+        <div className="rec-field">
+          <span className="rec-dot" style={{ scale: String(1 + level * 0.9) }} aria-hidden />
+          <span className="rec-time" aria-live="off">
+            {formatDuration(recMs)}
+          </span>
+          <span className="rec-hint">রেকর্ড হচ্ছে…</span>
+          <span className="rec-max">সর্বোচ্চ {formatDuration(MAX_VOICE_MS)}</span>
+        </div>
+        <button type="button" className="send-btn" aria-label="ভয়েস পাঠান" onClick={() => stopRecording(true)}>
+          <SendIcon size={20} />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <form
@@ -149,23 +340,57 @@ export function Composer({ disabled, reply, onCancelReply, editing, onCancelEdit
         </div>
       )}
 
-      <button
-        type="button"
-        className="icon-btn composer-attach"
-        aria-label="ছবি পাঠান"
-        disabled={disabled || !!editing}
-        onClick={() => fileRef.current?.click()}
-      >
-        <ImageIcon />
-      </button>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        multiple
-        hidden
-        onChange={(e) => pickFiles(e.target.files)}
-      />
+      <div className="attach-wrap" ref={attachRef}>
+        <button
+          type="button"
+          className={`icon-btn composer-attach ${attachOpen ? 'is-open' : ''}`}
+          aria-label="ছবি বা ফাইল পাঠান"
+          aria-haspopup="menu"
+          aria-expanded={attachOpen}
+          disabled={disabled || !!editing}
+          onClick={() => setAttachOpen((v) => !v)}
+        >
+          <PaperclipIcon />
+        </button>
+        {attachOpen && (
+          <div className="attach-menu" role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setAttachOpen(false);
+                imageRef.current?.click();
+              }}
+            >
+              <span className="attach-ico is-image">
+                <ImageIcon size={20} />
+              </span>
+              <span>
+                ছবি
+                <small>ছোট করে পাঠানো হয়</small>
+              </span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setAttachOpen(false);
+                fileRef.current?.click();
+              }}
+            >
+              <span className="attach-ico is-file">
+                <FileIcon size={20} />
+              </span>
+              <span>
+                ফাইল
+                <small>PDF, Word, ZIP… সর্বোচ্চ ২৫ MB</small>
+              </span>
+            </button>
+          </div>
+        )}
+      </div>
+      <input ref={imageRef} type="file" accept="image/*" multiple hidden onChange={(e) => pickFiles(e.target.files, 'auto')} />
+      <input ref={fileRef} type="file" multiple hidden onChange={(e) => pickFiles(e.target.files, 'file')} />
 
       <div className="composer-field">
         <textarea
@@ -197,22 +422,34 @@ export function Composer({ disabled, reply, onCancelReply, editing, onCancelEdit
             const files = e.clipboardData?.files;
             if (files && files.length) {
               e.preventDefault();
-              pickFiles(files);
+              pickFiles(files, 'auto');
             }
           }}
         />
       </div>
 
-      <button
-        type="submit"
-        className="send-btn"
-        aria-label="পাঠান"
-        disabled={disabled || !text.trim()}
-        // ট্যাপ করলে কিবোর্ড যেন বন্ধ না হয়
-        onPointerDown={(e) => e.preventDefault()}
-      >
-        <SendIcon size={20} />
-      </button>
+      {showMic ? (
+        <button
+          type="button"
+          className="send-btn mic-btn"
+          aria-label="ভয়েস মেসেজ রেকর্ড করুন"
+          disabled={disabled}
+          onClick={startRecording}
+        >
+          <MicIcon size={22} />
+        </button>
+      ) : (
+        <button
+          type="submit"
+          className="send-btn"
+          aria-label="পাঠান"
+          disabled={disabled || !text.trim()}
+          // ট্যাপ করলে কিবোর্ড যেন বন্ধ না হয়
+          onPointerDown={(e) => e.preventDefault()}
+        >
+          <SendIcon size={20} />
+        </button>
+      )}
     </form>
   );
 }

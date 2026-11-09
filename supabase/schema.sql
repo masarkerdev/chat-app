@@ -1067,3 +1067,40 @@ create trigger profiles_server_last_seen
 
 revoke all on function public.touch_last_seen() from public, anon;
 grant execute on function public.touch_last_seen() to authenticated;
+
+-- =====================================================================
+-- 16. ফাইল ও ভয়েস মেসেজ
+--     ছবি, ফাইল, ভয়েস — সবই একই প্রাইভেট বাকেটে (chat-images), পথ থাকে image_path-এ।
+--     তাই মোছা, নিজে মুছে যাওয়া, পুরো চ্যাট মোছা — সব আগের মতোই ফাইলগুলোও মুছে দেয়।
+-- =====================================================================
+alter table public.messages add column if not exists media_kind  text;
+alter table public.messages add column if not exists file_name   text;
+alter table public.messages add column if not exists file_size   bigint;
+alter table public.messages add column if not exists mime_type   text;
+alter table public.messages add column if not exists duration_ms integer;
+
+alter table public.messages drop constraint if exists messages_media_check;
+alter table public.messages add constraint messages_media_check check (
+  (media_kind is null or media_kind in ('image', 'file', 'voice'))
+  and (media_kind is null or image_path is not null)
+  and (media_kind is distinct from 'file' or file_name is not null)
+  and (file_name is null or char_length(file_name) between 1 and 200)
+  and (file_size is null or file_size between 0 and 26214400)
+  and (mime_type is null or char_length(mime_type) <= 120)
+  and (duration_ms is null or duration_ms between 0 and 600000)
+);
+
+-- আগের ছবিগুলো চিহ্নিত করি
+update public.messages set media_kind = 'image'
+ where image_path is not null and media_kind is null;
+
+-- বাকেট: সর্বোচ্চ ২৫ MB; ছবি, ভয়েস, আর ফাইল (ফাইল সবসময় "download" হিসেবে রাখা হয়,
+-- তাই কেউ ক্ষতিকর HTML/স্ক্রিপ্ট পাঠালেও ব্রাউজারে খুলে চলবে না)
+update storage.buckets
+   set file_size_limit = 26214400,
+       allowed_mime_types = array[
+         'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+         'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/aac',
+         'application/octet-stream'
+       ]
+ where id = 'chat-images';

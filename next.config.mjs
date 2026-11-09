@@ -25,7 +25,8 @@ const csp = [
   `connect-src 'self' ${supabase} ${supabaseWs}${isDev ? ' ws: http://localhost:*' : ''}`.trim(),
   "worker-src 'self'",
   "manifest-src 'self'",
-  "media-src 'self' blob:",
+  // ভয়েস মেসেজ: Supabase-এর প্রাইভেট লিংক আর রেকর্ডের পরের লোকাল কপি
+  `media-src 'self' blob: ${supabase}`.trim(),
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -40,10 +41,10 @@ const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   // লিংক খুললে এই অ্যাপের ঠিকানা (বা ছবির লিংক) অন্য সাইট জানতে পারবে না
   { key: 'Referrer-Policy', value: 'no-referrer' },
-  // অ্যাপ ক্যামেরা/মাইক/লোকেশন ব্যবহার করে না — তাই বন্ধ
+  // মাইক শুধু এই অ্যাপের নিজের পেইজে (ভয়েস মেসেজ); ক্যামেরা/লোকেশন বন্ধ
   {
     key: 'Permissions-Policy',
-    value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
+    value: 'camera=(), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()',
   },
   { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
   ...(isDev ? [] : [{ key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' }]),

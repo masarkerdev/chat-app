@@ -41,11 +41,12 @@ function setupVapid() {
   return true;
 }
 
-function previewText(t: Target) {
+function previewText(t: Target, mediaText?: string | null) {
   // NOTIFY_PREVIEW=false দিলে লক স্ক্রিনে মেসেজের লেখা দেখাবে না
   if (process.env.NOTIFY_PREVIEW === 'false') return 'নতুন মেসেজ';
   const text = t.body_text?.trim();
   if (text) return text.length > 140 ? `${text.slice(0, 139)}…` : text;
+  if (mediaText) return mediaText;
   return t.has_image ? '📷 ছবি' : 'নতুন মেসেজ';
 }
 
@@ -89,6 +90,14 @@ export async function POST(req: Request) {
   if (error) return json(403, { error: error.message });
 
   const targets = (data ?? []) as Target[];
+
+  // ফাইল বা ভয়েস হলে নোটিফিকেশনে সেটা লিখি ("📷 ছবি"-র বদলে)
+  let mediaText: string | null = null;
+  if (kind !== 'nudge' && kind !== 'rps' && targets.some((t) => t.has_image && !t.body_text?.trim())) {
+    const { data: m } = await sb.from('messages').select('media_kind, file_name').eq('id', messageId).maybeSingle();
+    if (m?.media_kind === 'voice') mediaText = '🎤 ভয়েস মেসেজ';
+    else if (m?.media_kind === 'file') mediaText = `📎 ${m.file_name ?? 'ফাইল'}`;
+  }
   const dead: string[] = [];
   let sent = 0;
 
@@ -112,11 +121,11 @@ export async function POST(req: Request) {
               body:
                 process.env.NOTIFY_PREVIEW === 'false'
                   ? `আপনার মেসেজে ${t.emoji} দিয়েছেন`
-                  : `${t.emoji} দিয়েছেন: "${previewText(t)}"`,
+                  : `${t.emoji} দিয়েছেন: "${previewText(t, mediaText)}"`,
               url: '/chat',
               messageId,
             }
-          : { type: 'message', title: t.sender_name, body: previewText(t), url: '/chat', messageId }
+          : { type: 'message', title: t.sender_name, body: previewText(t, mediaText), url: '/chat', messageId }
       );
       try {
         await webpush.sendNotification(

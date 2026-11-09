@@ -2,6 +2,8 @@
 
 import { memo, useLayoutEffect, useRef, useState } from 'react';
 import { getSignedUrl, useSignedUrl } from '@/hooks/useSignedUrl';
+import { FileCard, VoicePlayer } from './MediaParts';
+import { mediaKindOf } from '@/lib/media';
 import { formatFull, formatRemaining, formatTime, isEmojiOnly, snippet, splitLinks } from '@/lib/format';
 import { QUICK_REACTIONS, type Message } from '@/lib/types';
 import { AlertIcon, ArrowDownIcon, CopyIcon, PenIcon, PinIcon, ReplyIcon, RetryIcon, TimerIcon, TrashIcon } from './Icons';
@@ -136,6 +138,7 @@ function MessageBubbleBase({
   }, [active]);
 
   const text = msg.content ?? '';
+  const kind = mediaKindOf(msg);
   const emojiOnly = !msg.image_path && !msg.reply_to && isEmojiOnly(text);
 
   // ------------------------------------------------ লং-প্রেস + সোয়াইপ-টু-রিপ্লাই
@@ -260,7 +263,9 @@ function MessageBubbleBase({
           className={[
             'bubble',
             mine ? 'bubble-mine' : 'bubble-theirs',
-            msg.image_path ? 'is-image' : '',
+            kind === 'image' ? 'is-image' : '',
+            kind === 'file' ? 'is-file' : '',
+            kind === 'voice' ? 'is-voice' : '',
             emojiOnly ? 'is-emoji' : '',
             active ? 'is-active' : '',
             msg.failed ? 'is-failed' : '',
@@ -311,8 +316,12 @@ function MessageBubbleBase({
             </button>
           )}
 
-          {msg.image_path ? (
+          {kind === 'image' ? (
             <BubbleImage msg={msg} onOpen={onOpenImage} />
+          ) : kind === 'voice' ? (
+            <VoicePlayer msg={msg} />
+          ) : kind === 'file' ? (
+            <FileCard msg={msg} />
           ) : (
             <p className="bubble-text">
               {splitLinks(text).map((part, i) =>

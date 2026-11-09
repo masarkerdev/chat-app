@@ -69,10 +69,19 @@ export function isEmojiOnly(text: string) {
 }
 
 /** রিপ্লাইয়ের উদ্ধৃতিতে মূল মেসেজের ছোট অংশ */
-export function snippet(m: { content: string | null; image_path: string | null }, max = 90) {
+export function snippet(
+  m: { content: string | null; image_path: string | null; media_kind?: string | null; file_name?: string | null },
+  max = 90
+) {
   const t = m.content?.replace(/\s+/g, ' ').trim();
   if (t) return t.length > max ? `${t.slice(0, max - 1)}…` : t;
-  return m.image_path ? '📷 ছবি' : '';
+  if (!m.image_path) return '';
+  if (m.media_kind === 'voice') return '🎤 ভয়েস মেসেজ';
+  if (m.media_kind === 'file') {
+    const n = m.file_name ?? 'ফাইল';
+    return `📎 ${n.length > max - 2 ? `${n.slice(0, max - 3)}…` : n}`;
+  }
+  return '📷 ছবি';
 }
 
 const bnNum = (n: number, pad = 0) =>

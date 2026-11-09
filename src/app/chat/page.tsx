@@ -231,6 +231,16 @@ function ChatScreen() {
         onCancelEdit={cancelEdit}
         onSend={send}
         onImage={sendImage}
+        onFile={async (file) => {
+          const err = await chat.sendFile(file, replyTo?.id);
+          if (!err) setReplyTo(null);
+          return err;
+        }}
+        onVoice={(blob, ms) => {
+          const err = chat.sendVoice(blob, ms, replyTo?.id);
+          if (!err) setReplyTo(null);
+          return err;
+        }}
         onTyping={chat.sendTyping}
       />
 
